@@ -1,0 +1,84 @@
+---
+title: "Assignment 1"
+author: "Jeff Gould"
+date: "1/31/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# 1
+
+
+
+
+
+
+
+
+
+
+
+
+# 2
+
+## a)
+
+$\theta \sim Beta(\alpha, \beta)$
+
+$P(\theta) = \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} \theta^{\alpha-1} (1 - \theta)^{\beta - 1}$
+
+$E[\theta] = \int_0^1 \theta \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} \theta^{\alpha-1} (1 - \theta)^{\beta - 1} d\theta = \int_0^1 \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} \theta^{\alpha-1+1} (1 - \theta)^{\beta - 1} d\theta$
+
+$\theta^{\alpha-1+1} (1 - \theta)^{\beta - 1}$ is the kernel for a $\beta(\alpha + 1, \beta)$ distribution
+
+$\frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} = \frac{\alpha\Gamma(\alpha + \beta)}{\Gamma(\alpha+1)\Gamma(\beta)}\frac{\alpha\Gamma(\alpha + \beta + 1)}{(\alpha + \beta)\Gamma(\alpha+1)\Gamma(\beta)}$
+
+Substitute:
+
+$\int_0^1 \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} \theta^{\alpha-1+1} (1 - \theta)^{\beta - 1} d\theta = \int_0^1 \frac{\alpha\Gamma(\alpha + \beta + 1)}{(\alpha + \beta)\Gamma(\alpha+1)\Gamma(\beta)} \theta^{\alpha - 1 + 1}(1-\theta)^{\beta - 1}d\theta = \frac{\alpha}{\alpha + \beta}\int_0^1 \frac{\Gamma(\alpha + \beta + 1)}{\Gamma(\alpha+1)\Gamma(\beta)} \theta^{\alpha - 1 + 1}(1-\theta)^{\beta - 1}d\theta = \frac{\alpha}{\alpha + \beta}$
+
+
+## b)
+
+$\mu \sim Pois(\lambda)$
+
+$P(\mu) = \frac{\lambda^{\mu} e^{-\lambda}}{\mu!}$
+
+$E[\mu] - \sum_{\mu = 0}^{\infty}\frac{\mu \lambda^{\mu}e^{-\lambda}}{\mu!} =  \lambda \sum_{\mu = 1}^{\infty} \frac{ \lambda^{\mu-1}e^{-\lambda}}{(\mu-1)!}$
+
+$\frac{ \lambda^{\mu-1}e^{-\lambda}}{(\mu-1)!}$ is the kernel for $(\mu - 1) \sim Pois(\lambda)$, so 
+
+$\sum_{\mu = 1}^{\infty} \frac{ \lambda^{\mu-1}e^{-\lambda}}{(\mu-1)!} = \sum_{\mu - 1 =0}^{\infty} \frac{ \lambda^{\mu-1}e^{-\lambda}}{(\mu-1)!} = 1$
+
+
+And 
+
+$\lambda \sum_{\mu = 1}^{\infty} \frac{ \lambda^{\mu-1}e^{-\lambda}}{(\mu-1)!}$
+
+Therefore, $E[\mu] = \lambda$
+
+
+
+
+## c)
+
+$\nu \sim Binom(n,p)$
+
+$P(\nu) = \sum_{\nu = 0}^n \binom{n}{\nu} p^{\nu}(1-p)^{n - \nu}$
+
+$E[\nu] = \sum_{\nu = 0}^n \nu \binom{n}{\nu} p^{\nu}(1-p)^{n - \nu}= \sum_{\nu = 1}^n \nu \binom{n}{\nu} p^{\nu}(1-p)^{n - \nu}$
+
+$\nu \binom{n}{\nu} = n \binom{n-1}{\nu - 1}$
+Let $\eta = \nu - 1$ and $m = n-1$
+
+$\sum_{\nu = 1}^n \nu \binom{n}{\nu} p^{\nu}(1-p)^{n - \nu} =\sum_{\nu = 1}^n n \binom{n-1}{\nu - 1} p^{\nu}(1-p)^{n - \nu}= n\sum_{\nu = 1}^n  \binom{n-1}{\nu - 1} p \cdot p^{\nu-1}(1-p)^{(n-1) - (\nu-1)} =np \sum_{\eta = 0}^m \binom{m}{\eta} p^{\eta}(1-p)^{n - \eta}$
+
+and the summation is the kernel for $\eta \sim Binom(m,p)$, so it sums to 1
+
+Therefore $E[\nu] = 1$
+
+
