@@ -2,22 +2,34 @@
 title: "Assignment 1"
 author: "Jeff Gould"
 date: "1/31/2021"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
 ```
 
 
 # 1
 
+Show that the conditional distribution is a valid pmf/pdf for both continuous and discrete random variables:
 
+Need to show: probabilty is $\geq 0$ and total probability sums to 1
 
+$P(Y | X = x_i) = \frac{P(X \cap Y)}{P(X)}$
 
+Discrete:
 
+$\sum_y f(y | x) = \frac{\sum_y f(y,x)}{f_x(x)} = \frac{f_x(x)}{f_x(x)} = 1$
 
+Continuous:
 
+$\int_y f(y |x) dy = \frac{\int_y f(x,y) dy}{f_x(x)} = \frac{f_x(x)}{f_x(x)} = 1$
+
+And, since $f(x,y) \geq 0$, as it's a valid probabilty distribution, and $f_x(x) > 0$, then $f(y|x) \geq 0$
+
+Therefore, the conditional distribution is a valid pmf/pdf
 
 
 
@@ -33,7 +45,7 @@ $P(\theta) = \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} \theta^{
 
 $E[\theta] = \int_0^1 \theta \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} \theta^{\alpha-1} (1 - \theta)^{\beta - 1} d\theta = \int_0^1 \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} \theta^{\alpha-1+1} (1 - \theta)^{\beta - 1} d\theta$
 
-$\theta^{\alpha-1+1} (1 - \theta)^{\beta - 1}$ is the kernel for a $\beta(\alpha + 1, \beta)$ distribution
+$\theta^{\alpha-1+1} (1 - \theta)^{\beta - 1}$ is the kernel for a $Beta(\alpha + 1, \beta)$ distribution
 
 $\frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} = \frac{\alpha\Gamma(\alpha + \beta)}{\Gamma(\alpha+1)\Gamma(\beta)}\frac{\alpha\Gamma(\alpha + \beta + 1)}{(\alpha + \beta)\Gamma(\alpha+1)\Gamma(\beta)}$
 
@@ -79,6 +91,222 @@ $\sum_{\nu = 1}^n \nu \binom{n}{\nu} p^{\nu}(1-p)^{n - \nu} =\sum_{\nu = 1}^n n 
 
 and the summation is the kernel for $\eta \sim Binom(m,p)$, so it sums to 1
 
-Therefore $E[\nu] = 1$
+Therefore $E[\nu] = np$
+
+
+
+## d)
+
+$\gamma \sim Exp(\beta)$
+
+$P(\gamma) = \beta e^{-\beta \gamma}$
+
+$E[\gamma] = \int_0^{\infty} \gamma \beta e^{-\beta\gamma} d\gamma$
+
+$\gamma^{2-1}e^{-\beta \gamma}$ forms the kernel for $Gamma(\alpha = 2, \beta)$
+
+$\int_0^{\infty} \gamma \beta e^{-\beta\gamma} d\gamma = \int_0^{\infty} \frac{\beta}{\beta} \gamma^{2-1} \beta e^{-\beta\gamma} d\gamma = \frac{1}{\beta} \int_0^{\infty} \gamma^{2-1} \beta^2 e^{-\beta \gamma} d\gamma$
+
+$\int_0^{\infty} \gamma^{2-1} \beta^2 e^{-\beta \gamma} d\gamma$ is the pdf for $Gamma(\alpha = 2, \beta)$, so the integral computes to 1.
+
+Thus $E[\gamma] = \frac{1}{\gamma}$
+
+
+
+
+
+# 3
+
+$X | N,P \sim Binom(N,P)$
+
+$N \sim Pois(\Lambda)$
+
+$\Lambda \sim Gamma(\alpha, \beta)$
+
+$P \sim Beta(\gamma, \zeta)$
+
+$E[X] = E[NP] = E[N]E[P]$
+
+$E[N] = E[\Lambda] = \frac{\alpha}{\beta}$
+
+$E[P] = \frac{\gamma}{\gamma + \zeta}$
+
+$E[X] = \frac{\alpha}{\beta}\frac{\gamma}{\gamma + \zeta}$
+
+
+
+
+
+
+
+
+
+# 4
+
+$\beta \sim Gamma(1800, 10)$
+
+$\epsilon \sim \mathcal{N}(e, \tau_e^2$
+
+$\delta \sim \mathcal{N}(d, \tau_d^2)$
+
+
+$Y_i | \beta, \epsilon, \delta, T_i \sim \mathcal{N}\left[ \beta + \epsilon \cdot 1(T_i = 0) + \delta \cdot 1(T_i = 1), \sigma^2\right]$
+
+
+
+$E[Y_i] = E[\mathcal{N}\left[ \beta + \epsilon \cdot 1(T_i = 0) + \delta \cdot 1(T_i = 1), \sigma^2\right]] = E[\beta + \epsilon \cdot 1(T_i = 0) + \delta \cdot 1(T_i = 1)] = E[\beta] + E[\epsilon]E[T_i=0] + E[\delta]E[T_i=1]=$
+
+$\frac{1800}{10} + 0.5(\epsilon) + 0.5(\delta) = 180 + 0.5(\epsilon + \delta)$
+
+
+
+
+
+
+
+
+
+
+
+# Computation
+
+## 1
+
+### a) $\theta \sim Exp(27)$
+
+$P(\Theta \leq \theta) = P(U \leq u)$
+
+$F_{\theta}(\theta) = F_U(u)$
+
+$1 - exp(-\theta / 27) = u$
+
+$\theta = -27 \log (1 - u)$
+
+
+```{r }
+set.seed(108)
+u <- runif(1000)
+theta <- -27 * log(1 - u)
+
+ggplot(data.frame(theta = theta)) +
+  geom_density(aes(x = theta)) +
+  stat_function(data = data.frame(x. = c(0, 200)), aes(x = x.), fun = dexp, args = list(rate = 1/27), geom = "line", 
+                color = "blue") + 
+  theme_bw()
+
+```
+
+
+
+```{r }
+set.seed(108)
+u <- runif(10000)
+theta <- -27 * log(1 - u)
+
+ggplot(data.frame(theta = theta)) +
+  geom_density(aes(x = theta)) +
+  stat_function(data = data.frame(x. = c(0, 200)), aes(x = x.), fun = dexp, args = list(rate = 1/27), geom = "line", 
+                color = "blue") + 
+  theme_bw()
+
+```
+
+
+
+### b) $\theta \sim Cauchy(-7,2)$
+
+$F_{\theta}(\theta) = F_U(u)$
+
+$\frac{1}{\pi} \arctan(\frac{\theta - -7}{2}) + \frac{1}{2} = u$
+
+$\arctan(\frac{\theta + 7}{2}) = \pi u - \frac{\pi}{2}$
+
+$\frac{\theta + 7}{2} = \tan(\pi u - \frac{\pi}{2})$
+
+$\theta = 2 \tan(\pi u - \frac{\pi}{2}) - 7$
+
+```{r }
+set.seed(108)
+u <- runif(1000)
+theta <- 2 * tan(pi * u - pi / 2) - 7
+
+ggplot(data.frame(theta = theta)) +
+  geom_density(aes(x = theta)) +
+  stat_function(data = data.frame(x. = c(-500, 500)), aes(x = x.), fun = dcauchy, args = list(location = -7, scale = 2), geom = "line", 
+                color = "blue") + 
+  theme_bw()
+
+
+```
+
+
+
+```{r }
+set.seed(108)
+u <- runif(10000)
+theta <- 2 * tan(pi * (u - 0.5)) - 7
+
+plot(density(theta, n = 2^9))
+curve(dcauchy(x, location = -7, scale = 2), add = TRUE, col = 'blue', lwd = 2)
+
+ggplot(data.frame(theta = theta)) +
+  geom_density(aes(x = theta), n = 2^9) +
+  stat_function(data = data.frame(x. = c(-500, 500)), aes(x = x.), fun = dcauchy, args = list(location = -7, scale = 2), geom = "line", 
+                color = "blue") + 
+  theme_bw()
+
+
+```
+
+
+
+
+### c) $\theta \sim Gumbel(3,6)$
+
+$F_{\theta}(\theta) = e^{-e^{-(\theta - 3)/6}}$
+
+$e^{-e^{-(\theta - 3)/6}} = u$
+
+$e^{-(\theta - 3)/6} = -\log(u)$
+
+$-(\theta - 3)/6 = \log(-\log(u))$
+
+$\theta = -6\log(-\log(u)) + 3$
+
+
+```{r }
+set.seed(108)
+u <- runif(1000)
+theta <- -6 * log(-log(u)) + 3
+
+ggplot(data.frame(theta = theta)) +
+  geom_density(aes(x = theta)) +
+  stat_function(data = data.frame(x. = c(0, 20)), aes(x = x.), 
+                fun = extraDistr::dgumbel, args = list(mu = 3, sigma = 6), geom = "line", 
+                color = "blue") + 
+  theme_bw()
+
+```
+
+
+
+```{r }
+set.seed(108)
+u <- runif(10000)
+theta <- -6 * log(-log(u)) + 3
+
+ggplot(data.frame(theta = theta)) +
+  geom_density(aes(x = theta)) +
+  stat_function(data = data.frame(x. = c(0, 20)), aes(x = x.), 
+                fun = extraDistr::dgumbel, args = list(mu = 3, sigma = 6), geom = "line", 
+                color = "blue") + 
+  theme_bw()
+
+
+```
+
+
+
+
 
 
