@@ -2,11 +2,11 @@
 title: "Assignment 3"
 author: "Jeff Gould"
 date: "3/4/2021"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
 # Theoretical Exercises
@@ -64,14 +64,22 @@ So for the marginal distribution of $\beta$:
 
 $P(\beta|  \lambda, Y, X) \propto \exp\left[-\frac{1}{2\lambda^{-1}}\{(\hat{\beta} - \beta)' X'X (\hat{\beta} -\beta) \} \right]$
 
-Which is the kernel for a multivariate normal distribution with mean = $\hat{\beta}$ and a Covariance matrix of $\Sigma = \lambda^{-1}(X'X)^{-1}$
+Which is the kernel for a multivariate normal distribution with mean = $\hat{\beta}$ and a Covariance matrix of $\Sigma = \lambda^{-1}(X'X)^{-1}$, and with $\hat{\beta}= (X'X)^{-1}X'Y$
 
 
 
+\begin{align*}
+\begin{split}
+P(\lambda|X,Y) &= \int (\lambda)^{n/2-1} \exp\left[-\frac{\lambda}{2}\{(Y-X\hat{\beta})'(Y-X\hat{\beta})\}\right] \exp \left[-\frac{\lambda}{2} (\hat{\beta} - \beta)' X'X (\hat{\beta} - \beta) \right]d\beta \\ 
+&\propto  (\lambda)^{n/2-1} \exp\left[-\frac{\lambda}{2}\{(Y-X\hat{\beta})'(Y-X\hat{\beta})\}\right] \int \exp \left[-\frac{\lambda}{2} (\hat{\beta} - \beta)' X'X (\hat{\beta} - \beta) \right]d\beta \\ 
+&\propto (\lambda)^{n/2-1} \exp\left[-\frac{\lambda}{2}\{(Y-X\hat{\beta})'(Y-X\hat{\beta})\}\right] \lambda^{k/2} \int \exp \lambda^{-k/2} \left[-\frac{\lambda}{2} (\hat{\beta} - \beta)' X'X (\hat{\beta} - \beta) \right]d\beta \\
+&=  (\lambda)^{n/2-1} \exp\left[-\frac{\lambda}{2}\{(Y-X\hat{\beta})'(Y-X\hat{\beta})\}\right] \lambda^{k/2}\\ 
+&= (\lambda)^{(n+k)/2-1} \exp\left[-\frac{\lambda}{2}\{(Y-X\hat{\beta})'(Y-X\hat{\beta})\}\right]
+\end{split}
+\end{align*}
 
 
-
-
+Which we recognize as the kernel for a variable with a gamma distribution with parameters: $\alpha = \frac{n +k}{2}$ and $\beta = \frac{(Y-X\hat{\beta})'(Y-X\hat{\beta})}{2}$
 
 
 ## 3) 
@@ -136,10 +144,16 @@ I &= - \left[\begin{array}{ll}
 
 \begin{align*}
 \begin{split}
-I(\theta)|_{\theta = \hat{\theta}} = \left[ 
+I(\theta)|_{\theta = \hat{\theta}} &= \left[ 
 \begin{array}{ll}
 \frac{n}{n+2}\sum(w_i - \bar{w})^2 &  (\frac{\sum(w_i - \bar{w})^2}{n+2})^{-2}\sum(w_i - \bar{w}) \\
 (\frac{\sum(w_i - \bar{w})^2}{n+2})^{-2}\sum(w_i - \bar{w}) & -\frac{n/2  +1}{(\frac{1}{n+2}\sum (w_i - \bar{w})^2)^2} + (\frac{\sum (w_i - \bar{w})^2}{n+2})^{-3}\sum(w_i - \bar{w})^2
+\end{array}
+\right] \\
+&= \left[ 
+\begin{array}{ll}
+\frac{n}{n+2}\sum(w_i - \bar{w})^2 &  0 \\
+0 & -\frac{n/2  +1}{(\frac{1}{n+2}\sum (w_i - \bar{w})^2)^2} + (\frac{\sum (w_i - \bar{w})^2}{n+2})^{-3}\sum(w_i - \bar{w})^2
 \end{array}
 \right]
 \end{split}
@@ -179,7 +193,7 @@ $\frac{\partial}{\partial \lambda}\log \mathcal{L} = \frac{22n-1}{\lambda} - \su
 
 $\frac{\partial^2}{\partial \lambda^2}\log \mathcal{L} = -\frac{22n-1}{\lambda^2} \rightarrow  I(\hat{\lambda}) = \frac{22n-1}{(\frac{22n-1}{\sum x_i})^2} = \frac{(\sum x_i)^2}{22n-1}$
 
-$\lambda \sim \mathcal{N}\left(\frac{22n-1}{\sum x_i}, \frac{(\sum x_i)^2}{22n-1}\right)$
+$\lambda \sim \mathcal{N}\left(\frac{22n-1}{\sum x_i}, \frac{22n-1}{(\sum x_i)^2}\right)$
 
 
 
@@ -194,21 +208,31 @@ x_i_male <- sum(incidence$male)
 x_i_female <- sum(incidence$female)
 B <- 10000
 
+I_male <- sum(x_i_male)^2 / (n * k - 1)
+I_female <- sum(x_i_female)^2 / (n * k - 1)
 Lambda <- data.frame(lambda_male = rep(NA, B),
                       lambda_female = rep(NA,B))
 
-set.seed(2020)
-Lambda$lambda_male <- rnorm(n = B, mean = (k*n-1)/x_i_male, sd = sqrt((x_i_male)^2 / (k * n - 1)))
-set.seed(2020)
-Lambda$lambda_female <- rnorm(n = B, mean = (k*n-1)/x_i_female, sd = sqrt((x_i_female)^2 / (k * n - 1)))
 
-ggplot(data = Lambda) +
-  geom_density(aes(x = lambda_male), alpha = 0.5, color = "blue", fill = "blue") +
-  geom_density(aes(x = lambda_female), alpha = 0.5, color = "red", fill = "red")  +
+set.seed(2020)
+Lambda$lambda_male <- rnorm(n = B, mean = (k*n-1)/x_i_male, sd = sqrt(1/I_male))
+set.seed(2020)
+Lambda$lambda_female <- rnorm(n = B, mean = (k*n-1)/x_i_female, sd = sqrt(1/I_female))
+
+Lambda %>%
+  pivot_longer(cols = lambda_male:lambda_female) %>%
+ggplot() +
+  geom_density(aes(x = value, color = name, fill = name), alpha = 0.5) +
   theme_bw()
 
 
 ```
+
+
+We see that the distribution for $\lambda$ for males has a lower mean and variance than it does for females. Since $1 / \lambda$ is the time it takes to develop cancer, this suggests that cancer develops more slowly in males than it does for females
+
+
+
 
 
 
@@ -233,14 +257,14 @@ XtXi	<- solve(t(X)%*%X)
 
 rbeta	<- matrix(0, nrow = B, ncol = k)
 
-shape <- (n - k)/2
+shape <- (n + k)/2
 rate <- (1/2) * t(Y - X %*% bhat) %*% (Y - X %*% bhat)
 
 set.seed(1980)
-rsig <- rinvgamma(B, shape, rate)
+rsig <- rgamma(B, shape, rate)
 
 for(i in 1:B){
-  CovX		<- rsig[i]*XtXi
+  CovX		<- (rsig[i]^(-1))*XtXi
   rbeta[i,]	<- c(rmvnorm(1, mean = bhat, sigma = CovX))
 }
 
@@ -249,8 +273,12 @@ postp    <- apply(rbeta > 0, 2, mean)
 outMat   <- cbind(t(rbMat), postp)
 rownames(outMat) <- colnames(X)
 
+
+outMat
 ```
 
-
+All three variables are statisitically significant in regards to their impact on a coup
+Whether or not the country is a democracy, on average, changed the log-Probabilty of a coup by 1.81 points
+Each year of age of the leader decreased the log-Probabilty of a coup by 0.1 points, on average. Lastly, the longer the leader was in office, the lower the probabilty of a coup as well.
 
 
