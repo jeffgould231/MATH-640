@@ -1,0 +1,490 @@
+---
+title: "Midterm"
+author: "Jeff Gould"
+date: "3/14/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(ggplot2)
+library(dplyr)
+library(mvtnorm)
+library(MCMCpack)
+```
+
+
+# Theory
+
+## 1)
+
+### a)
+
+$\tau^2 = 1/ \sigma^2 \rightarrow \sigma^2 = 1/ \tau^2$
+
+
+$$
+\left(\frac{2}{\pi \sigma^2}\right)^{1/2} \exp \left[-\frac{1}{2\sigma^2}s_i^2 \right] = \left(\frac{2}{\pi(1/\tau^2)} \right)^{1/2} \exp \left[-\frac{1}{2(1/\tau^2)}s_i^2\right] = \left(\frac{2 \tau^2}{\pi}\right)^{1/2}\exp \left(-\frac{\tau^2}{2}s_i^2\right)1(s_i >0)
+$$
+
+
+Find Jeffrey's Prior:
+
+
+$\log \mathcal{L} = \frac{1}{2} \log(2\tau^2) - \frac{1}{2}\log(\pi) - \frac{\tau^2}{2}s_i$
+
+$\frac{\partial}{\partial \tau^2} = \frac{1}{2 \tau^2} - \frac{s_i^2}{2}$
+
+$\frac{\partial^2}{\partial (\tau^2)^2} = -(2 \tau^2)^{-2}$
+
+$-E[-(2 \tau^2)^{-2} | \tau^2] = (2 \tau^2)^{-2} \propto (\tau^2)^{-2}$
+
+
+Take the square root to get Jeffrey's prior:
+
+$\pi(\tau^2) \propto \frac{1}{\tau^2}$
+
+
+### b)
+
+
+\begin{align*}
+\begin{split}
+P(\tau^2 |S) &= \frac{1}{\tau^2}\prod \left(\frac{2\tau^2}{\pi}\right)^{1/2}\exp\left(-\frac{\tau^2}{2}s_i^2\right) \\
+&=(\tau^2)^{-1}\left(\frac{2 \tau^2}{\pi}\right)^{n/2}\exp \left[- \frac{\tau^2}{2} \sum s_i^2 \right] \\
+&\propto (\tau^2)^{n/2 -1}\exp \left[- \frac{\tau^2}{2} \sum s_i^2 \right]
+\end{split}
+\end{align*}
+
+
+Which we recognize as the kernel for a gamma distribution with parameters $\alpha = \frac{n}{2}$ and $\beta = \frac{1}{2}\sum s_i^2$
+
+$\tau^2 \sim Gamma(\frac{n}{2}, \frac{1}{2}\sum s_i^2)$
+
+### c)
+
+Since $\sigma^2$ has an Inverse-Gamma distribution, the kernel for it's distribution is
+
+$(1/\sigma^2)^{\alpha + 1}\exp[-\beta / \sigma^2] = (\tau^2)^{\alpha +1}\exp[-\beta \tau^2]$
+
+Which is the kernel for a Gamma distribution. So, since the identity replacement within the kernel transforms us from IG to Gamma, placing the prior on the precision is the same as placing it on th variation since we could simply reverse the equality to get the distribution kernel for the variance
+
+## 2)
+
+### a)
+
+Define $\bar{x} = \frac{1}{n}\sum \log(x_i)$ and define $s^2 = \frac{1}{n-1}\sum(\log(x_i)  -  \bar{x})^2$
+
+
+\begin{align*}
+\begin{split}
+\pi(\mu, \sigma^2) \mathcal{L}(x_i | \mu, \sigma^2) &= (\sigma^2)^{-1} \prod \frac{1}{x_i \sqrt{2 \pi \sigma^2}}\exp\left[-\frac{1}{2 \sigma^2}(\log(x_i) - \mu)^2 \right] \\ 
+&\propto (\sigma^2)^{-1} (\sigma^2)^{-n/2} \exp \left[-\frac{1}{2}\sigma^2 \sum (\log(x_i)  - \mu)^2\right] \\
+&\propto (\sigma^2)^{-(n/2 +1)}\exp\left[-\frac{1}{2\sigma^2} \sum (\log(x_i) - \bar{x} + \bar{x} - \mu)^2 \right] \\
+&\propto (\sigma^2)^{-(n/2 +1)}\exp\left[-\frac{1}{2 \sigma^2}  \sum\{(\log(x_i) - \bar{x})^2  + 2(\log(x_i) - \bar{x})(\bar{x} - \mu) + ( \bar{x} - \mu)^2\} \right] \\
+&\propto (\sigma^2)^{-(n/2 +1)}\exp\left[-\frac{1}{2\sigma^2}\{\sum(\log(x_i) - \bar{x})^2 + \sum2(\log(x_i) - \bar{x})(\bar{x} - \mu) + \sum(\bar{x} - \mu)^2\} \right] \\ 
+&\propto (\sigma^2)^{-(n/2 +1)}\exp\left[- \frac{1}{2 \sigma^2}\{\sum(\log(x_i) - \bar{x})^2 + n(\bar{x} - \mu)^2 \} \right] \\
+&\propto (\sigma^2)^{-(n/2 +1)}\exp\left[-\frac{1}{2 \sigma^2}\{(n-1)s^2 + n(\bar{x} - \mu)^2\} \right] \\
+&\propto (\sigma^2)^{-(n/2 +1)}\exp\left[-\frac{1}{2\sigma^2}(n-1)s^2 \right]\exp\left[-\frac{n}{2 \sigma^2}(\bar{x} - \mu)^2 \right]
+\end{split}
+\end{align*}
+
+So $P(\mu | \sigma^2, X) \propto \exp\left[-\frac{n}{2 \sigma^2}(\bar{x} - \mu)^2 \right] =\exp\left[-\frac{1}{2 (\sigma^2/n)}(\bar{x} - \mu)^2 \right]$
+
+$P(\mu | \sigma^2, X) \sim \mathcal{N}(\bar{x}, \sigma^2/2) = \mathcal{N}(\frac{1}{n}\sum\log(x_i), \frac{\sigma^2}{n})$
+
+
+
+### b)
+
+Note the support for $\mu$ is given as all real numbers, so $\mu \in (-\infty, \infty)$
+
+\begin{align*}
+\begin{split}
+P(\sigma^2 |X) &\propto \int_{-\infty}^{\infty} (\sigma^2)^{-n/2 +1} \exp\left[-\frac{1}{2\sigma^2}(n-1)s^2\right]\exp\left[-\frac{n}{2\sigma^2}(\bar{x} - \mu)^2\right] d\mu  \\
+&\propto (\sigma^2)^{-n/2 + 1}\exp \left[-\frac{1}{2 \sigma^2}(n-1)s^2 \right]\int_{-\infty}^{\infty} \exp \left[-\frac{1}{2(\sigma^2 /n)}(\bar{x} - \mu)^2 \right] d\mu \\
+&\propto (\sigma^2)^{-n/2 + 1}\exp \left[-\frac{1}{2 \sigma^2}(n-1)s^2 \right]\int_{-\infty}^{\infty} \frac{\sqrt{2 \pi \sigma^2 /n}}{2 \pi \sigma^2 /n} \exp \left[-\frac{1}{2(\sigma^2 /n)}(\bar{x} - \mu)^2 \right] d\mu \\
+&\propto (\sigma^2)^{-n/2 + 1}\exp \left[-\frac{1}{2 \sigma^2}(n-1)s^2 \right] \sqrt{2 \pi \sigma^2 /n}\int_{-\infty}^{\infty} \frac{1}{2 \pi \sigma^2 /n} \exp \left[-\frac{1}{2(\sigma^2 /n)}(\bar{x} - \mu)^2 \right] d\mu \\
+&\propto (\sigma^2)^{-n/2 + 1}\exp \left[-\frac{1}{2 \sigma^2}(n-1)s^2 \right] \sqrt{2 \pi \sigma^2 /n} \\
+&\propto (\sigma^2)^{-n/2 + 1}\exp \left[-\frac{1}{2 \sigma^2}(n-1)s^2 \right]
+\end{split}
+\end{align*}
+
+
+Which we recogniaze as the kernel for an Inverse-Gamma distribution
+
+$\sigma^2 \sim IG(\frac{n-1}{2}, \frac{n-1}{2}s^2) =IG(\frac{n-1}{2}, \frac{1}{2}\sum(\log(x_i)  -  \bar{x})^2)$
+
+
+
+
+## 3)
+
+### a)
+
+\begin{align*}
+\begin{split}
+\mathcal{L} = \prod_{i=1}^n b_0 \eta \exp[b_0t_i + \eta]\exp[-\eta  e^{bt_i}]  \\
+\propto (b_0 \eta)^n \exp \left[\sum(b_0 t_i + \eta) \right] \exp  \left[-\sum \eta e^{b_0 t_i} \right] \\
+\propto \eta^n \exp  \left[\sum(b_0 t_i) + n\eta \right] \exp\left[ -\sum \eta e^{b_0 t_i} \right] \\
+\propto \eta^n \exp[\sum b_0 t_i] \exp[n\eta] \exp[-\eta \sum e^{b_0 t_i}] \\ 
+\propto \eta^n \exp[n\eta] \exp[-\eta \sum e^{b_0 t_i}]
+\end{split}
+\end{align*}
+
+
+$\pi(\eta) = \eta^{-1}$
+
+
+So, $P(\eta) \propto \eta^{n-1} \exp[n \eta] \exp[-\eta \sum e^{b_0 t_i}]$
+
+
+
+### b)
+
+$\log P = \log[\eta^{n-1} \exp[n \eta] \exp[-\eta \sum e^{b_0 t_i}]] = (n-1) \log(\eta) + n \eta - \eta \sum e^{b_0 t_i}$
+
+\begin{align*}
+\begin{split}
+\frac{\partial \log P}{\partial \eta} = \frac{n-1}{\eta} + n - \sum e^{b_0 t_i} = 0 \\
+\frac{n - 1}{\eta} = \sum e^{b_0 t_i} - n \\
+\hat{\eta} = \frac{n - 1}{\sum e^{b_0t_i} - n}
+\end{split}
+\end{align*}
+
+
+### c) Observed Information
+
+$\frac{\partial^2 \log P}{\partial \eta^2} = -(n-1)(\eta)^{-2} + 0 + 0$
+
+$I = (n-1) (\hat{\eta})^{-2} = \frac{n-1}{\left(\frac{n-1}{\sum e^{b_0 t_i} - n}\right)^2} = \frac{(\sum e^{b_0 t_i} - n)^2}{n-1}$
+
+
+
+### d)
+
+Since we have the mode and the observed information, we can sample $\eta | t_1, \dots ,t_n, b_0$ using the approximation to the normal:
+
+$Y \sim \mathcal{N}(\hat{\theta}, I[\hat{\theta}]^{-1})$
+
+This gives us
+
+$\eta \sim \mathcal{N} \left(\frac{n-1}{\sum e^{b_0t_i}}, \frac{n-1}{(\sum e^{b_0 t_i})^2}\right)$
+
+
+
+
+
+## 4)
+
+Since we only have one observation, the likelihood is simply the pmf
+
+
+$$
+\mathcal{L} = \Gamma(\sum x_i) \frac{\theta_0^{x_0}}{\Gamma(x_0)} \prod_{i=1}^3 \frac{\theta_i^{x_i}}{x_i!} \\
+\propto \theta_0^{x_0}\theta_1^{x_1}\theta_2^{x_2}\theta_3^{x_3}
+$$
+
+Which we recognize as the Kernel for a Dirichlet distribution
+
+
+The non-informative prior for a Dirichlet distribution is $\alpha_0 = \alpha_1 = \alpha_2 = \alpha_3 =1$
+
+
+# Analysis
+
+## a)
+
+
+
+$f(w_i) = \frac{w_i}{\theta^2} \exp(-\frac{w_i^2}{2 \theta^2})$
+
+\begin{align*}
+\begin{split}
+\mathcal{L} &= \prod \frac{w_i}{\theta^2} \exp(-\frac{w_i^2}{2 \theta^2}) \\
+&= (\frac{1}{\theta^2})^n \exp(-\frac{\sum w_i^2}{2 \theta^2})\prod w_i \\
+&\propto (\theta^2)^{-n} \exp(-\frac{\sum w_i^2}{2 \theta^2})
+\end{split}
+\end{align*}
+
+Which is the kernel for an Inverse Gamma distribution
+
+So choose a non-informative IG prior: $\pi(\theta^2) \propto (\theta^2)^{-1}$
+
+This is an improper prior, but also wht we would get with an IG distribution with both parameters set to 0. The smaller both parameters are in an IG distribution, the less information in the prior, with the prior becoming completely non-informative when both parameters are equal to 0.
+
+\begin{align*}
+\begin{split}
+P(\theta | W) &\propto (\theta^2)^{-1}(\theta^2)^{-n} \exp(-\frac{\sum w_i^2}{2 \theta^2}) \\ 
+&= (\theta^2)^{-n-1}\exp\left(-\frac{\sum w_i^2}{2 \theta^2} \right)
+\end{split}
+\end{align*}
+
+The kernel for an inverse-gamma distribution with parameters $\alpha=n$ and $\beta = \frac{\sum w_i^2}{2}$
+
+$$\theta^2 \sim IG(n, \frac{\sum w_i^2}{2})$$
+
+```{r }
+wind <- read.delim("wind.txt", header = F)
+
+alpha <- nrow(wind)
+beta <- sum(wind^2) / 2
+
+
+set.seed(6302)
+theta <- MCMCpack::rinvgamma(n = 20000, shape = alpha, scale = beta)
+
+
+theta.df <- data.frame(Theta2 = theta) %>%
+  dplyr::mutate(Mode = sqrt(Theta2),
+                Median = Mode*sqrt(2 * log(2)),
+                Mean = Mode * sqrt(pi / 2))
+
+
+ggplot(theta.df, aes(x = Mode)) +
+  geom_histogram(col = "black", fill = "red") +
+  theme_bw() +
+  labs(title = "Mode")
+
+
+ggplot(theta.df, aes(x = Median)) +
+  geom_histogram(col = "black", fill = "blue") +
+  theme_bw() +
+  labs(title = "Median")
+
+
+ggplot(theta.df, aes(x = Mean)) +
+  geom_histogram(col = "black", fill = "green") +
+  theme_bw() +
+  labs(title = "Mean")
+
+
+round(
+apply(theta.df[,2:4], 2, quantile, probs = c(0.5, 0.025, 0.975)), 3
+)
+
+
+```
+
+
+
+To find the probabilty of a day having wind speeds in excess of 15 mph, we could either evaluate at our average $\theta^2$ value, or evaluate the integral for all $\theta^2$ values and then average (It is the same value). The CDF for the distribution is $1 - \exp[-x^2/(2 \theta^2)]$, so given a $\theta^2$, the orobabilty of wind speeds exceeding 15 mph is simply $\exp[-(15^2) / (2 \theta^2)]$
+
+The median probabilty is about 13.37% that wind speeds could exceed 15 mph, however with the higher values of $\theta^2$ that we drew, we see an upper-bound of an 18.11% chance that wind speeds could be that high.
+
+```{r}
+wind_probs <- exp(-(15)^2 / (2 * theta))
+quantile(wind_probs, c(0.5, 0.025, 0.975))
+```
+
+
+
+## b)
+
+
+```{r fig.width=2.5, fig.height=2}
+bikeShare <- read.delim("day.txt", sep = " ")
+
+ggplot(bikeShare, aes(x = casual)) +
+  geom_histogram() +
+  theme_bw()
+
+ggplot(bikeShare, aes(x = registered)) +
+  geom_histogram() +
+  theme_bw()
+
+```
+
+
+It looks like the number of registered bikers in a day is relatively normally distributed. However, the number of casual bikers in a day is not normally distributed, and has a right-tail. Therefore we will log-transform the number of casual bikers
+
+
+Registered Biker model:
+
+```{r }
+
+B     <- 20000
+n     <- nrow(bikeShare)
+X     <- model.matrix(
+  registered ~ yr + holiday + workingday+ temp + atemp + hum + windspeed, 
+  data = bikeShare
+  )
+Y     <- bikeShare$registered
+K     <- ncol(X)
+
+bhat	<- c(solve(t(X)%*%X)%*%(t(X)%*%Y))
+SSY	<- t(Y - X%*%bhat)%*%(Y - X%*%bhat)
+XtXi	<- solve(t(X)%*%X)
+rbeta	<- matrix(0, nrow = B, ncol = K)
+
+set.seed(726)
+rsig	<- rinvgamma(B, (n-K)/2, (1/2)*SSY)
+for(i in 1:B){
+  CovX		<- rsig[i]*XtXi
+  rbeta[i,]	<- c(rmvnorm(1, mean = bhat, sigma = CovX))
+}
+
+rbMat	   <- apply(rbeta, 2, quantile, probs = c(0.5, 0.025, 0.975))
+postp    <- apply(rbeta > 0, 2, mean)
+outMat   <- cbind(t(rbMat), postp)
+rownames(outMat) <- colnames(X)
+colnames(outMat) <- c(rownames(rbMat), 'P(b > 0)')
+round(outMat,4)
+
+```
+
+
+Building an initial model on all the possible covariates, we see that temperature and holiday are not statistically significant predictors. Let's now remove them and build a new model
+
+
+```{r }
+
+B     <- 20000
+n     <- nrow(bikeShare)
+X     <- model.matrix(registered ~ yr  + workingday + atemp + hum + windspeed, 
+                      data = bikeShare)
+Y     <- bikeShare$registered
+K     <- ncol(X)
+
+bhat	<- c(solve(t(X)%*%X)%*%(t(X)%*%Y))
+SSY	<- t(Y - X%*%bhat)%*%(Y - X%*%bhat)
+XtXi	<- solve(t(X)%*%X)
+rbeta	<- matrix(0, nrow = B, ncol = K)
+
+set.seed(726)
+rsig	<- rinvgamma(B, (n-K)/2, (1/2)*SSY)
+for(i in 1:B){
+  CovX		<- rsig[i]*XtXi
+  rbeta[i,]	<- c(rmvnorm(1, mean = bhat, sigma = CovX))
+}
+
+rbMat	   <- apply(rbeta, 2, quantile, probs = c(0.5, 0.025, 0.975))
+postp    <- apply(rbeta > 0, 2, mean)
+outMat   <- cbind(t(rbMat), postp)
+rownames(outMat) <- colnames(X)
+colnames(outMat) <- c(rownames(rbMat), 'P(b > 0)')
+round(outMat,4)
+
+registered_summary <- outMat
+registered_model <- rbeta
+```
+
+
+Now we have a model with all statistically significant variables
+
+
+And predict the number of riders on February 29, 2012:
+
+
+```{r }
+theta <- matrix(c(1, 1, 1, 0.34847, 0.804783, 0.179117), ncol = 1)
+predicted <- data.frame(Registered = registered_model %*% theta)
+```
+
+
+
+
+
+
+
+
+Now Casual riders:
+
+
+```{r }
+B     <- 20000
+n     <- nrow(bikeShare)
+bikeShare$logCasual <- log(bikeShare$casual)
+
+X     <- model.matrix(
+  logCasual ~ yr + holiday + workingday+ temp + atemp + hum + windspeed, 
+  data = bikeShare
+  )
+Y     <- bikeShare$logCasual
+K     <- ncol(X)
+
+bhat	<- c(solve(t(X)%*%X)%*%(t(X)%*%Y))
+SSY	<- t(Y - X%*%bhat)%*%(Y - X%*%bhat)
+XtXi	<- solve(t(X)%*%X)
+rbeta	<- matrix(0, nrow = B, ncol = K)
+
+set.seed(97)
+rsig	<- rinvgamma(B, (n-K)/2, (1/2)*SSY)
+for(i in 1:B){
+  CovX		<- rsig[i]*XtXi
+  rbeta[i,]	<- c(rmvnorm(1, mean = bhat, sigma = CovX))
+}
+
+rbMat	   <- apply(rbeta, 2, quantile, probs = c(0.5, 0.025, 0.975))
+postp    <- apply(rbeta > 0, 2, mean)
+outMat   <- cbind(t(rbMat), postp)
+rownames(outMat) <- colnames(X)
+colnames(outMat) <- c(rownames(rbMat), 'P(b > 0)')
+round(outMat,4)
+
+```
+
+Again, temperature and holiday are not statistically significant predictors. Remove them from model and build new one
+
+
+
+
+
+```{r }
+B     <- 20000
+n     <- nrow(bikeShare)
+bikeShare$logCasual <- log(bikeShare$casual)
+
+X     <- model.matrix(logCasual ~ yr + workingday + atemp + hum + windspeed, 
+                      data = bikeShare)
+Y     <- bikeShare$logCasual
+K     <- ncol(X)
+
+bhat	<- c(solve(t(X)%*%X)%*%(t(X)%*%Y))
+SSY	<- t(Y - X%*%bhat)%*%(Y - X%*%bhat)
+XtXi	<- solve(t(X)%*%X)
+rbeta	<- matrix(0, nrow = B, ncol = K)
+
+set.seed(97)
+rsig	<- rinvgamma(B, (n-K)/2, (1/2)*SSY)
+for(i in 1:B){
+  CovX		<- rsig[i]*XtXi
+  rbeta[i,]	<- c(rmvnorm(1, mean = bhat, sigma = CovX))
+}
+
+rbMat	   <- apply(rbeta, 2, quantile, probs = c(0.5, 0.025, 0.975))
+postp    <- apply(rbeta > 0, 2, mean)
+outMat   <- cbind(t(rbMat), postp)
+rownames(outMat) <- colnames(X)
+colnames(outMat) <- c(rownames(rbMat), 'P(b > 0)')
+round(outMat,4)
+
+casual_summary <- outMat
+casual_model <- rbeta
+```
+
+
+We end up seeing the same inputs are used for both models. Neither one uses `holiday` or `temp`. This makes sense as most of the necessary signal in `holiday` lies simply in them not being a `workingday`. And then most of the information in `temp` can be found in `atemp`, and the other factors that change `temp` from `atemp` are mostly found in `hum` and `windspeed`
+
+Directionally, all the variables are the same excpet for `workingday`. For our registered user model, there is a positive relationship between `workingday` and number of riders. In our casual model, `workingday` has a negative impact on the number of riders. This makes some sense as many registered users likely use the bikes as their method of transportation to and from work, while casual riders are probably using the bikes to explore the city on weekends.
+
+
+And here is our projection for number of riders on February 29, 2012:
+
+```{r }
+
+theta <- matrix(c(1, 1, 1, 0.34847, 0.804783, 0.179117), ncol = 1)
+predicted$Casual <- exp(casual_model %*% theta)
+
+predRiders	<- apply(predicted, 2, quantile, probs = c(0.5, 0.025, 0.975))
+meanPred    <- apply(predicted , 2, mean)
+outMat   <- cbind(t(predRiders), meanPred)
+outMat
+```
+
+
+
+
+
+
+
