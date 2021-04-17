@@ -1,0 +1,152 @@
+---
+title: "Bitcoin Project"
+author: "Jeff Gould"
+date: "4/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+Script for pulling 5-minute candles from the CoinbasePro API, using the `rgdax` package. Only needs to be run once to get the data, unless we want finer candles. 
+
+```{r eval = F}
+tictoc::tic()
+for(Date in as.character(seq.Date(from = as.Date("2016-07-01"), 
+                       to = as.Date("2021-04-14"),
+                       by = "1 day"))){
+  temp_data <- rgdax::public_candles(product_id = "BTC-USD",
+                                     start = glue::glue("{Date}T00:00:00.000000Z"),
+                                     end = glue::glue("{as.Date(Date) + lubridate::days(1)}T00:00:00.000000Z"),
+                                     granularity = 300)
+  if(Date == "2016-07-01"){
+    coinbase_candles_5M <- temp_data
+  }else{
+    coinbase_candles_5M <- dplyr::bind_rows(coinbase_candles_5M, temp_data)
+  }
+  Sys.sleep(.5) ## Pause is required so we don't max out API requests/5s periods
+  
+}
+tictoc::toc()
+write_csv(coinbase_candles_5M, "btcCandles5M.csv")
+```
+
+Now load the data and do some basic cleaning. I accidentally pulled the first candle of each day twice, as it's the last candle of the previous day and the first candle of the day that it's called. The `end` argument should have been 11:55:00, but oh well. Easy to clean up with a `distinct()`
+
+
+```{r }
+btcCandles <- read_csv("btcCandles5M.csv") %>% distinct() 
+```
+
+
+General Formulas:
+
+$r_t = \log(P_t) - \log(P_{t-1})$, where $r_t$ is the return and $P_t$ deontes the price at time $t$. General practice is to use the close of the candles.
+
+$$
+Realized Variance = \sum_{t=1}^{n} r_t^2
+$$
+
+Note that there are 288 candles in a day (24*60/5), so $n=288$ on most days. There are some days with fewer candles, due to outages or server maintenance. Let $k$ denote the number of missing candles. For these days, scale $RealizedVariance$ by $\frac{n-k}{n}$
+
+$$
+Realized Vol (RV) = \sqrt{Realized Variance}
+$$
+
+To annualize Variance:
+
+$$
+AnnualizedRealVariance = 365 * RealizedVariance
+$$
+
+$$
+AnnualizedRV = \sqrt{AnnualizedRealVariance}
+$$
+
+For simplicity, I will simply calculate the Realized Variance/Volatility for a single day, instead of on a 24-hour rolling basis. We can revisit this later. But if we simply forecast at the start of each day, I think this method will be sufficient.
+
+Also, there is an erroneous candle on `2017-04-15 23:00:00`, where after an outage the open price is 0.06. I remove that candle for now with `filter(open >1)`. Also remove days with fewer than 250 candles for now.
+
+```{r }
+btcRV <- btcCandles %>% 
+  filter(open >1) %>%
+  mutate(Date =  lubridate::date(time),
+         Return = case_when(
+           row_number() == 1 ~ log(close) - log(open),
+           TRUE ~log(close) - log(lag(close))
+           )) %>%
+  group_by(Date) %>%
+  mutate(RealizedVariance = sum(Return^2) * n()/288,
+         RV = sqrt(RealizedVariance),
+         AnnualizedVariance = 365 * RealizedVariance,
+         AnnualizedRV = sqrt(AnnualizedVariance),
+         TotalVolume = sum(volume),
+         candles = n()) %>%
+  filter(candles > 250)
+
+```
+
+
+And some quick visualizations, looking at just the opening candles for each day.
+
+As expected, RV looks to follow an Inverse Gamma distribution
+
+```{r }
+
+# btcRV_open <- btcRV %>%
+#   slice_min(order_by = time, n = 1) %>%
+#   ungroup()
+
+btcRV_open <- btcRV %>%
+  filter(lubridate::hour(time) == 0, lubridate::minute(time) == 0) %>%
+  ungroup()
+
+ggplot(btcRV_open) +
+  geom_density(aes(x = RV)) +
+  theme_bw()
+
+```
+
+
+
+There looks to be a modest correlation between Realized Volatility in period $t$ and $t-1$
+
+
+
+```{r }
+ggplot(data = btcRV_open, aes(x = lag(RV), y = RV)) +
+  geom_point() +
+  theme_bw()
+
+```
+
+
+
+```{r }
+ggplot(data = btcRV_open) +
+  geom_point(aes(x = TotalVolume, y = RV)) +
+  theme_bw()
+
+```
+
+
+```{r  }
+ggplot(data = btcRV_open) +
+  geom_line(aes(x = Date, y = RV)) +
+  theme_bw()
+
+
+ggplot(data = btcRV_open) +
+  geom_line(aes(x = Date, y = log(RV))) +
+  theme_bw()
+
+ggplot(data = btcRV_open) +
+  geom_density(aes(x = log(RV))) +
+  stat_function(fun = dnorm, args = list(mean = -3.534, sd = 0.75), col = "blue") +
+  theme_bw()
+
+#write_csv(btcRV_open, "btcOpenCandles.csv")
+```

@@ -1,0 +1,477 @@
+---
+title: "Assignment 4"
+author: "Jeff Gould"
+date: "3/30/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+library(tidyverse)
+```
+
+
+
+
+
+
+# Analysis
+
+## 1
+
+\begin{align*}
+\begin{split}
+P(\beta | y_i) &= \mathcal{L}(y_i | \beta)\pi(\beta) \\
+&\propto \exp\left[ \sum[y_i \beta - \log(1 + e^{\beta})] \right] \\
+\log P(\beta | y_i) &\propto \log\left(\exp\left[ \sum[y_i \beta - \log(1 + e^{\beta})] \right] \right) \\
+&= \sum[y_i \beta - \log(1 + e^{\beta})] \\
+&=\sum y_i \beta - n \log(1 _ e^{\beta})
+\end{split}
+\end{align*}
+
+\begin{align*}
+\begin{split}
+\frac{\partial l}{\partial \beta} &= \sum y_i - \frac{n e^{\beta}}{1 + e^{\beta}} \overset{set}{=} 0 \\
+\sum y_i &= \frac{ne^{\beta}}{1 + e^{\beta}} \\
+\sum y_i &= e^{\beta}(n- \sum y_i) \\
+\hat{\beta} &= \log\left( \frac{\sum y_i}{n - \sum y_i}  \right)
+\end{split}
+\end{align*}
+
+
+\begin{align*}
+\begin{split}
+\frac{\partial^2 l}{\partial \beta^2}  &= \frac{n e^\beta}{1 + e^\beta} - \frac{ne^{2\beta}}{(1 + e^\beta)^2} \\
+&= -\frac{n e^{\beta}}{(1 + e^\beta)^2}
+\end{split}
+\end{align*}
+
+$I(\beta) = \frac{n e^{\beta}}{(1 + e^\beta)^2}$
+
+\begin{align*}
+\begin{split}
+I(\hat{\beta}) &= \frac{n e^{\log\left( \frac{\sum y_i}{n - \sum y_i}  \right)}}{ \left(1 + e^{\log\left( \frac{\sum y_i}{n - \sum y_i}  \right)} \right)^2} \\
+&= \frac{n \left( \frac{\sum y_i}{n - \sum y_i}  \right)}{ \left(1 + \left( \frac{\sum y_i}{n - \sum y_i}  \right) \right)^2}
+\end{split}
+\end{align*}
+
+
+
+$\beta | y_i \overset{\cdot}{\sim} \mathcal{N}(\hat{\beta}, I(\hat{\beta}))$, where $\hat{\beta}$ and $I(\hat{\beta})$ are as defined above
+
+
+```{r fig.width=5, fig.height=3}
+
+forestfire <- read.delim("forestfire.txt")
+n <- nrow(forestfire)
+
+beta_hat <- log(sum(forestfire) / (n - sum(forestfire)))
+var <- ((n * exp(beta_hat)) / (1 + exp(beta_hat)) - (2 * n * exp(beta_hat)) /
+          ((1 + exp(beta_hat))^2))^(-1)
+
+
+set.seed(812)
+Beta <- rnorm(10000, mean = beta_hat, sd = sqrt(var))
+hist(Beta)
+theta <- exp(Beta) / ( 1+ exp(Beta))
+
+hist(theta)
+```
+
+
+Jeffrey's Prior
+
+$\pi(\theta) \propto [J(\theta)]^{1/2}$
+
+$J[\theta] = - E\left[ \frac{\partial^2\log \mathcal{L}(Y|\theta)}{\partial^2 \theta} | \theta \right]$
+
+$\mathcal{L} \propto \exp \left\{\sum_{i=1}^n y_i \beta - \log(1 + e^{\beta}) \right\}$
+
+$\log \mathcal{L} \propto \sum_{i=1}^n y_i \beta - \log(1 + e^{\beta}) = \sum y_i \beta - n \log(1 + e^\beta)$
+
+
+$\frac{\partial \log \mathcal{L}}{\partial \beta} = \sum y_i - \frac{n e^\beta}{1 + e^\beta}$
+
+$\frac{\partial^2}{\partial \beta^2} = \frac{n e^\beta}{1 + e^\beta} - \frac{ne^{2\beta}}{(1 + e^\beta)^2} = -\frac{n e^{\beta}}{(1 + e^\beta)^2}$
+
+$J(\theta) = -E \left[ -\frac{n e^{\beta}}{(1 + e^\beta)^2} | \beta \right] = \frac{n e^{\beta}}{(1 + e^\beta)^2}$
+
+
+$\pi(\beta) \propto \left( \frac{n e^{\beta}}{(1 + e^\beta)^2} \right)^{1/2} \propto \frac{e^{\beta/2}}{1 + e^\beta}$
+
+
+$P(\beta|Y) \propto \exp\{\sum y_i\beta - \log(1 + e^\beta) \}\frac{e^{\beta/2}}{1 + e^\beta}$
+
+Take the log:
+
+$\sum (y_i\beta) - n\log(1 + e^\beta) + \log \left( \frac{e^{\beta/2}}{1 + e^\beta}\right) = \sum (y_i\beta) - n\log(1 + e^\beta) +\frac{\beta}{2} - \log(1 + e^\beta) = \sum ( y_i \beta) - (n+1)\log(1 + e^\beta) + \frac{\beta}{2}$
+
+$\frac{\partial l}{\partial \beta} = \sum y_i - \frac{(n+1)e^\beta}{1 + e^\beta} + \frac{1}{2} \overset{set}{=}0$
+
+\begin{align*}
+\begin{split}
+\sum y_i + \frac{1}{2} &= \frac{(n+1)e^\beta}{1 + e^\beta} \\
+(n+1)e^\beta &= (1 + e^\beta)(\sum y_i + 1/2) = \sum y_i + 1/2 + e^\beta \sum y_i + e^\beta/2 \\
+e^\beta(n+1) - e^\beta\sum y_i - e^\beta(1/2) &= \sum y_i + 1/2 \\
+e^\beta &= \frac{\sum y_i + 1/2}{(n+1) - \sum y_i - 1/2} \\
+\hat{\beta} &= \log \left(\frac{\sum y_i + 1/2}{(n+1) - \sum y_i - 1/2} \right)
+\end{split}
+\end{align*}
+
+
+\begin{align*}
+\begin{split}
+\frac{\partial^2}{\partial \beta^2} &= [(n+1)e^\beta][-1(1+e^\beta)^{-2}e^\beta] + [(1 + e^\beta)^{-1}][(n+1)e^\beta] \\
+&=\frac{(n+1)e^\beta}{1 + e^\beta} - \frac{(n+1)e^{2\beta}}{(1 + e^\beta)^2} \\
+&=-\frac{(n+1)e^\beta}{(1 + e^\beta)^2}
+\end{split}
+\end{align*}
+
+
+$I(\hat{\beta}) = -\frac{d^2}{d \beta^2}\log[p(\beta | y)] = \frac{(n+1)e^{\hat{\beta}}}{(1 + e^{\hat{\beta})^2}}$
+
+$$
+P(\beta | y) \overset{\cdot}{\sim} \mathcal{N} \left(\log \left(\frac{\sum y_i + 1/2}{(n+1) - \sum y_i - 1/2} \right), \frac{(1 + e^{\hat{\beta})^2}}{(n+1)e^{\hat{\beta}}}\right)
+$$
+
+```{r fig.width=5, fig.height=3}
+
+beta_hat <- log(
+  (sum(forestfire) + 1/2) / (n+1 - sum(forestfire) - 1/2)
+  )
+var <- ((1 + exp(beta_hat))^2) / ((n+1) * exp(beta_hat))
+
+
+set.seed(812)
+Beta2 <- rnorm(10000, mean = beta_hat, sd = sqrt(var))
+hist(Beta2)
+theta2 <- exp(Beta2) / ( 1+ exp(Beta2))
+
+hist(theta2)
+
+# mean(theta)
+# mean(theta2)
+# sd(theta)^2
+# sd(theta2)^2
+
+mean(Beta)
+mean(Beta2)
+sd(Beta)^2
+sd(Beta2)^2
+```
+
+
+We do find that the model is sensitive to the choice of prior, as the second model, made using Jeffrey's Prior, has a much narrower variance than that of the first model. The means are pretty comparable, but the distribution is approximately on order of magnitude smaller for the second model
+
+
+
+<br>
+
+
+## 2
+
+
+First let's build a model using all input variables
+
+```{r }
+library(mvtnorm)
+bikeshare <- read.table("bikeshare.txt", header = T)
+
+casual_model_1 <- glm(casual ~ yr  + workingday  + atemp + hum  + holiday + temp + windspeed, 
+                      data = bikeshare, family = poisson(link = "log"))
+summary(casual_model_1)
+```
+
+
+
+In the summary, we see that `temp` and `holiday` are the two weakest variables, using the z-value. This makes intuitive sense, and there is a high correlation between `temp` and `atemp`, and most of the signal from `holiday` likely is found within `workingday`
+
+
+
+```{r }
+casual_model_2 <- glm(casual ~ yr  + workingday  + atemp + hum + windspeed, 
+                      data = bikeshare, family = poisson(link = "log"))
+summary(casual_model_2)
+```
+
+Now we see higher magnitude z-values, and notice for `atemp` it climbed from 31.196 to 340.17, comfirming our belief that `atempt` and `temp` were highly correlated. 
+
+Now let's look at the confidence intervals for the coefficients:
+
+
+```{r }
+bhat	<- coef(casual_model_2)
+vbeta	<- vcov(casual_model_2)
+B		<- 10000
+set.seed(1959)
+beta	<- rmvnorm(B, mean = bhat, sigma = vbeta)
+
+round(t(apply(beta, 2, quantile, probs = c(0.5, 0.025, 0.975))), 4)
+```
+
+And now the diagnostic mcmc plots
+
+
+```{r fig.height=4}
+library(mcmcplots)
+
+for (v in colnames(beta)) {
+  x <- data.frame(var = beta[,v]) 
+  colnames(x) <- v
+  mcmcplot1(x, style = "plain")
+}
+```
+
+And lastly, Gewecke's Diagnostic
+
+```{r }
+geweke.diag(mcmc(beta))
+```
+
+Gewecke's Diagnostic mostly looks good using a threshold of $|z| \leq 3$, however `windspeed` is just over 3, suggesting we may want to exclude it from the final model
+
+
+
+
+ Now for the registered user model:
+ 
+ 
+```{r }
+registered_model_1 <- glm(registered ~ yr  + workingday  + atemp + hum  + holiday + temp + windspeed, 
+                      data = bikeshare, family = poisson(link = "log"))
+summary(registered_model_1)
+```
+
+
+Same findings as with the casual model, with `temp` and `holiday` being the least important variables
+
+Remove them from the model:
+
+```{r }
+registered_model_2 <- glm(registered ~ yr  + workingday  + atemp + hum + windspeed, 
+                      data = bikeshare, family = poisson(link = "log"))
+summary(registered_model_2)
+```
+
+Now `humidity` and `windspeed` are much less significant predictors than the other variables, but they may be important enough to still include. 
+
+```{r }
+bhat	<- coef(registered_model_2)
+vbeta	<- vcov(registered_model_2)
+B		<- 10000
+set.seed(1959)
+beta	<- rmvnorm(B, mean = bhat, sigma = vbeta)
+
+round(t(apply(beta, 2, quantile, probs = c(0.5, 0.025, 0.975))), 4)
+
+geweke.diag(mcmc(beta))
+```
+
+
+Gewecke's Diagnostic again suggests removing windspeed from our predictive variables
+
+```{r }
+registered_model_3 <- glm(registered ~ yr  + workingday  + atemp + hum, 
+                      data = bikeshare, family = poisson(link = "log"))
+summary(registered_model_3)
+bhat	<- coef(registered_model_3)
+vbeta	<- vcov(registered_model_3)
+B		<- 10000
+set.seed(1959)
+beta	<- rmvnorm(B, mean = bhat, sigma = vbeta)
+
+round(t(apply(beta, 2, quantile, probs = c(0.5, 0.025, 0.975))), 4)
+
+geweke.diag(mcmc(beta))
+```
+
+And lastly, the model diagnostic plots:
+
+```{r fig.height=4}
+
+for (v in colnames(beta)) {
+  x <- data.frame(var = beta[,v]) 
+  colnames(x) <- v
+  mcmcplot1(x, style = "plain")
+}
+
+```
+
+
+
+The models are very similar, with one glaring exception. For registered users, a `workingday` leads to higher user count, while casual users climb on non-working days. This matches our findings from the mid-term, which is good that we were able to replicate findings with different methods. And again, it make intuitive sense, as we would expect registered users to be higher volume and use the bikes on their commute, while people who ride casually are likely to have a separate commute routine, but ride the bikes to get around the city on the weekends.
+
+
+
+
+
+
+
+# Theoretical
+
+## 1
+
+$\mathcal{L}(y | \lambda) = \prod \frac{\lambda^{y_i}e^{-\lambda}}{y_i!} \propto e^{-n \lambda} \prod \lambda^{y_i} = e^{-n \lambda}\lambda^{\sum y_i}$
+
+$\pi(\lambda) = \frac{\beta^\alpha}{\Gamma(\alpha)}\lambda^{\alpha - 1}e^{-\beta \lambda}$
+
+$\pi(\alpha, \beta) \propto \frac{\beta^{\alpha s}}{\Gamma(\alpha)^r} p^{\alpha - 1}e^{-\beta q}$
+
+
+\begin{align*}
+\begin{split}
+\mathcal{L}(Y | \lambda)\pi(\lambda | \alpha, \beta) \pi(\alpha, \beta) &\propto \left(e^{-n\lambda}\lambda^{\sum  y_i}\right) \left(\frac{\beta^\alpha}{\Gamma(\alpha)}\lambda^{\alpha-1}e^{-\beta\lambda} \right) \left(\frac{\beta^{\alpha s}}{\Gamma(\alpha)^r}p^{\alpha-1}e^{-\beta q} \right) \\
+&\propto \lambda^{\sum y_i + \alpha -1}e^{-(n\lambda + \beta\lambda)}\frac{\beta^{\alpha(s+1)}}{\Gamma(\alpha)^{r+1}}e^{-\beta q}p^{\alpha -1} \\
+&\propto \lambda^{\sum y_i + \alpha -1}e^{-(n + \beta) \lambda}
+\end{split}
+\end{align*}
+
+Which is the kernel for a Gamma distribution with parameters:
+
+$\alpha' = \sum y_i + \alpha$
+
+$\beta' = n + \beta$
+
+So $P(\lambda | y) = \frac{(n+\beta)^{\sum y_i + \alpha}}{\Gamma(\sum y_i + \alpha)} \lambda^{\sum y_i + \alpha - 1 }e^{-(n + \beta) \lambda}$
+
+
+
+
+
+\begin{align*}
+\begin{split}
+P(\alpha, \beta | y) &= \frac{P(\alpha, \beta, \lambda | y)}{P(\lambda | y, \alpha, \beta)} \\
+&= \frac{\lambda^{\sum y_i + \alpha -1} \frac{\beta ^{\alpha (s+1)}}{\Gamma(\alpha)^{r + 1}} e^{-(n\lambda + \beta \lambda + \beta q)} p^{\alpha -1}}{\lambda^{\sum y_i + \alpha -1} \frac{(n + \beta)^{\sum y_i + \alpha}}{\Gamma(\sum y_i + \alpha)} e^{-(n + \beta) \lambda}} \\
+&= \frac{\Gamma(\sum y_i + \alpha) \beta^{\alpha(s+1)} p^{\alpha -1} e^{-\beta q}}{(n + \beta)^{\sum y_i + \alpha} \Gamma(\alpha)^{r+1}}
+\end{split}
+\end{align*}
+
+
+
+And this doesn't have a closed form distribution/solution, but is easy enough to calculate analytically
+
+## 2
+
+
+\begin{align*}
+\begin{split}
+\mathcal{L}(y|\mu) &= \prod \frac{1}{\sqrt{2 \pi \sigma_0^2}}\exp\left[-\frac{(y_i - \mu)^2}{2 \sigma_0^2}\right] \\
+&= (2\pi \sigma_0^2)^{-n/2} \exp\left[-\frac{1}{2 \sigma_0^2} \sum (y_i - \mu)^2\right] \\
+&\propto \exp\left[-\frac{1}{2 \sigma_0^2} \sum (y_i - \mu)^2\right]
+\end{split}
+\end{align*}
+
+
+$$
+P(\mu | \theta) = \frac{1}{\sqrt{2 \pi \tau_0^2}} \exp\left[- \frac{(\mu - \theta)^2}{2\tau_0^2} \right]
+$$
+
+$$
+P(\theta) = \frac{1}{\sqrt{2 \pi \gamma_0^2}} \exp\left[- \frac{\theta^2}{2\gamma_0^2} \right]
+$$
+
+
+\begin{align*}
+\begin{split}
+P(\mu, \theta | y) &\propto P(\theta)P(\mu | \theta)\mathcal{L}(y|\mu) \\
+&\propto \frac{1}{\sqrt{2 \pi \gamma_0^2}} \exp\left[- \frac{\theta^2}{2\gamma_0^2} \right] \frac{1}{\sqrt{2 \pi \tau_0^2}} \exp\left[- \frac{(\mu - \theta)^2}{2\tau_0^2} \right] \exp\left[-\frac{1}{2 \sigma_0^2} \sum (y_i - \mu)^2\right]
+\end{split}
+\end{align*}
+
+
+
+
+\begin{align*}
+\begin{split}
+P(\mu| y) &\propto P(\mu | \theta)\mathcal{L}(y|\mu) \\
+&\propto \frac{1}{\sqrt{2 \pi \tau_0^2}} \exp\left[- \frac{(\mu - \theta)^2}{2\tau_0^2} \right] \exp\left[-\frac{1}{2 \sigma_0^2} \sum (y_i - \mu)^2\right]
+\end{split}
+\end{align*}
+
+
+As shown in our notes:
+
+\begin{align*}
+\begin{split}
+\exp\left[-\frac{1}{2 \sigma_0^2} \sum (y_i - \mu)^2\right] &= \exp\left[-\frac{1}{2\sigma_0^2} \sum(y_i - \bar{y} + \bar{y} +\mu^2)\right] \\
+&= \exp\left[-\frac{1}{2\sigma_0^2}\left\{\sum(y_i - \bar{y})^2 + \sum 2(y_i - \bar{y})(\bar{y} - \mu) + \sum(\bar{y} - \mu)^2 \right\}\right] \\
+&=\exp\left[-\frac{1}{2\sigma_0^2} \left\{ \sum(y_i - \bar{y})^2 +n(\bar{y} - \mu)^2 \right\} \right]  \\
+&\propto \exp \left[-\frac{n}{2 \sigma_0^2}(\bar{y} - \mu)^2 \right]
+\end{split}
+\end{align*}
+
+
+Plugging in:
+
+\begin{align*}
+\begin{split}
+P(\mu| y) &\propto P(\mu | \theta)\mathcal{L}(y|\mu) \\
+&\propto \frac{1}{\sqrt{2 \pi \tau_0^2}} \exp\left[- \frac{(\mu - \theta)^2}{2\tau_0^2} \right] \exp\left[-\frac{1}{2 \sigma_0^2} \sum (y_i - \mu)^2\right] \\
+&\propto \exp\left[- \frac{(\mu - \theta)^2}{2\tau_0^2} \right] \exp \left[-\frac{n}{2 \sigma_0^2}(\bar{y} - \mu)^2 \right]  \\
+&= \exp\left[-\frac{1}{2}\left(\frac{n}{\sigma_0^2}(\bar{y} - \mu)^2 + \frac{1}{\tau_0^2}(\mu - \theta)^2 \right) \right] \\
+&= \exp\left[-\frac{1}{2}\left(\frac{n}{\sigma_0^2}(\bar{y}^2 - 2\mu\bar{y} + \mu^2) + \frac{1}{\tau_0^2}(\mu^2 - 2\mu\theta + \theta^2) \right) \right] \\
+&= \exp\left[-\frac{1}{2}\left(\mu^2\left\{\frac{n}{\sigma_0^2}+\frac{1}{\tau_0^2} \right\} \right) - 2\mu\left\{\frac{\theta}{\tau_0^2} + \frac{n\bar{y}}{\sigma_0^2}\right\} +\frac{\theta^2}{\tau_0^2} +\frac{n\bar{y}^2}{\sigma_0^2} \right] \\
+&= \exp\left[-\frac{1}{2}\left(\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2} \right) \left(
+\mu^2 - 2\mu\left\{\frac{\frac{\theta}{\tau_0^2} + \frac{n\bar{y}}{\sigma_0^2}}{\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2}} \right\} + \frac{\frac{\theta^2}{\tau_0^2} + \frac{n\bar{y}^2}{\sigma_0}}{\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2}} \right) \right] \\
+&= \exp\left[-\frac{1}{2}\left(\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2} \right) \left( \left\{\mu - \frac{\frac{\theta}{\tau_0^2} + \frac{n\bar{y}}{\sigma_0^2}}{\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2}} \right\}^2 + \frac{\frac{\theta^2}{\tau_0^2} + \frac{n\bar{y}^2}{\sigma_0^2}}{\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2}} - \left\{\frac{\frac{\theta}{\tau_0^2} + \frac{n \bar{y}}{\sigma_0^2}}{\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2}} \right\}^2 \right) \right] \\
+&\propto  \exp\left[-\frac{1}{2}\left(\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2} \right) \left(\mu - \frac{\frac{\theta}{\tau_0^2} + \frac{n\bar{y}}{\sigma_0^2}}{\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2}} \right)^2 \right]
+\end{split}
+\end{align*}
+
+
+Which is the kernel for a normal distribution with parameters $\mu_1 = \frac{\frac{\theta}{\tau_0^2} + \frac{n\bar{y}}{\sigma_0^2}}{\frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2}}$ and $\frac{1}{\tau_1^2} = \frac{1}{\tau_0^2} + \frac{n}{\sigma_0^2}$
+
+
+Now we need to find $P(\theta | y_i's)$
+
+Note that $P(y | \theta) \sim \mathcal{N}(\theta, \sigma_0^2 + \tau^2)$
+
+\begin{align*}
+\begin{split}
+P(\theta | y_i) &\propto P(\theta)P(y|\theta) \\
+&\propto \exp\left[-\frac{1}{2 \gamma_0^2}(\theta - 0)^2 \right]\prod \frac{1}{\sqrt{2\pi (\sigma_0^2 + \tau^2)}} \exp \left[-\frac{(y_i - \theta)^2}{2(\sigma_0^2 + \tau^2)} \right] \\
+&\propto \exp\left[-\frac{1}{2 \gamma_0^2}(\theta - 0)^2 \right] \exp \left[-\frac{1}{2(\sigma_0^2 + \tau^2)}\sum(y_i - \theta)^2 \right]
+\end{split}
+\end{align*}
+
+
+Now follow the same process algebraically as we did for the conditional posterior, where we sub in $0$ for $\theta$, $\theta$ is subbed for $\mu$, $\sigma_0^2 + \tau^2$ is subbed for $\sigma_0^2$, and $\gamma_0^2$ is subbed for $\tau_0^2$
+
+This leaves us with:
+
+
+\begin{align*}
+\begin{split}
+P(\theta | y_i) &\propto P(\theta)P(y|\theta) \\
+&\propto \exp\left[-\frac{1}{2 \gamma_0^2}(\theta - 0)^2 \right]\prod \frac{1}{\sqrt{2\pi (\sigma_0^2 + \tau^2)}} \exp \left[-\frac{(y_i - \theta)^2}{2(\sigma_0^2 + \tau^2)} \right] \\
+&\propto \exp\left[-\frac{1}{2 \gamma_0^2}(\theta - 0)^2 \right] \exp \left[-\frac{1}{2(\sigma_0^2 + \tau^2)}\sum(y_i - \theta)^2 \right] \\
+&\propto \exp\left[-\frac{1}{2}\left(\frac{1}{\gamma_0^2} + \frac{n}{\sigma_0^2 + \tau_0^2} \right) \left(\theta - \frac{\frac{n\bar{y}}{\sigma_0^2 + \tau_0^2}}{\frac{1}{\gamma_0^2} + \frac{n}{\sigma_0^2 + \tau_0^2}} \right)^2 \right]
+\end{split}
+\end{align*}
+
+So $\theta$ is normally distributed with mean $=\frac{n\bar{y}}{\sigma_0^2 + \tau_0^2}$ and variance $\gamma_1^2 = \frac{1}{\gamma_0^2} + \frac{n}{\sigma_0^2 + \tau_0^2}$
+
+
+
+## 3
+
+
+\begin{align*}
+\begin{split}
+P(\theta^{(b)} \leq a)  &= \int_{-\infty}^a p(\theta) d\theta \\
+&= \int_{-\infty}^{\infty} 1\{\theta \leq a \} \frac{p(\theta)}{g(\theta^*)}g(\theta^*) d\theta  \\
+&= M \cdot E_g \left[1\{\theta \leq a\}\frac{p(\theta)}{Mg(\theta^*)} \right] \\
+&= M \cdot E_g \left[1\{ \theta \leq a\} E\left[1\left\{ U \leq \frac{p(\theta)}{M g(\theta^*)} \right\} | \theta \right] \right] \\
+&= M E_g E \left[1\{ \theta \leq a\} 1\left\{ U \leq \frac{p(\theta)}{M g(\theta^*)} \right\} | \theta \right] \\
+&= \frac{P(\theta \leq a, \theta^* accepted)}{1/M} \\
+&= \frac{P(\theta \leq a, \theta^* accepted)}{P(\theta^* accepted)} \\
+&=P(\theta^* \leq a | accepted \theta^*)
+\end{split}
+\end{align*}
+
+
+
+
+
+
+
