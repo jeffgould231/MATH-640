@@ -148,5 +148,33 @@ ggplot(data = btcRV_open) +
   stat_function(fun = dnorm, args = list(mean = -3.534, sd = 0.75), col = "blue") +
   theme_bw()
 
+btcRV_open <- btcRV_open %>% mutate(dLogRV = log(RV) - log(lag(RV)))
+btcRV_open$dLogRV[1] = 0
+acf(btcRV_open$dLogRV)
 #write_csv(btcRV_open, "btcOpenCandles.csv")
 ```
+
+
+
+Realized Vol as a stochastic process:
+
+$$
+d\sigma^2(t) = - \lambda \sigma^2(t) dt + dz(\lambda t) \,\,\, \lambda > 0
+$$
+
+Define $\phi = 1 - \lambda$ and $\mu_{t+1} = z(\lambda (t+1)) - z(\lambda z)$
+
+
+We get 
+
+$$
+\log \sigma^2_t = (1 - \phi)\mu + \phi \log \sigma^2_{t-1} \epsilon_t
+$$
+
+
+
+
+
+
+
+
