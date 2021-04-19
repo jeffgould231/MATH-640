@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Methods
 
-Our data sample is the 5-minute intrady OHLCV-Candles for Bitcoin trading on the Coinbase exchange, dating from July 1, 2016-April 14, 2021. With these candles we calculate the intraday Realized Volatility (RV), where $RV = \sqrt{\sum_{i=1}^{288} r_i^2}$, where $r_t = log(p_t) - log(p_{t-1})$ deontes the return for time period $t$, and 288 comes from 288 5-minute candles in a day. Our goal is to use a Gibbs Sampler to estimate the paramters for 2-3 Stochastic Volatility models on the data sample ranging from 2016-2019, and then test the results on the data sample ranging from 2020-201 for applicability. The general form of a stochastic volatilty model is $d\nu_t = \alpha_{\nu, t}dt + \beta_{\nu,t}dB_t$, where $dB_t$ is standard Brownian Motion.
+Our data sample is the 5-minute intrady OHLCV-Candles for Bitcoin trading on the Coinbase exchange, dating from January 1, 2016-April 14, 2021. With these candles we calculate the intraday Realized Volatility (RV), where $RV = \sqrt{\sum_{i=1}^{288} r_i^2}$, where $r_t = log(p_t) - log(p_{t-1})$ deontes the return for time period $t$, and 288 comes from 288 5-minute candles in a day. Our goal is to use a Gibbs Sampler to estimate the paramters for 2-3 Stochastic Volatility models on the data sample ranging from 2016-2019, and then test the results on the data sample ranging from 2020-201 for applicability. The general form of a stochastic volatilty model is $d\nu_t = \alpha_{\nu, t}dt + \beta_{\nu,t}dB_t$, where $dB_t$ is standard Brownian Motion.
 
 An example of a specifc model that we may use is the Heston Model, which parametrizes the differential equation above as the following:
 
