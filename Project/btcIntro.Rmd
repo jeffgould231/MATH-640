@@ -15,19 +15,19 @@ Script for pulling 5-minute candles from the CoinbasePro API, using the `rgdax` 
 
 ```{r eval = F}
 tictoc::tic()
-for(Date in as.character(seq.Date(from = as.Date("2016-07-01"), 
+for(Date in as.character(seq.Date(from = as.Date("2016-01-01"), 
                        to = as.Date("2021-04-14"),
                        by = "1 day"))){
   temp_data <- rgdax::public_candles(product_id = "BTC-USD",
                                      start = glue::glue("{Date}T00:00:00.000000Z"),
-                                     end = glue::glue("{as.Date(Date) + lubridate::days(1)}T00:00:00.000000Z"),
+                                     end = glue::glue("{Date}T23:55:00.000000Z"),
                                      granularity = 300)
-  if(Date == "2016-07-01"){
+  if(Date == "2016-01-01"){
     coinbase_candles_5M <- temp_data
   }else{
     coinbase_candles_5M <- dplyr::bind_rows(coinbase_candles_5M, temp_data)
   }
-  Sys.sleep(.5) ## Pause is required so we don't max out API requests/5s periods
+  Sys.sleep(.25) ## Pause is required so we don't max out API requests/1s periods
   
 }
 tictoc::toc()
@@ -72,7 +72,7 @@ Also, there is an erroneous candle on `2017-04-15 23:00:00`, where after an outa
 
 ```{r }
 btcRV <- btcCandles %>% 
-  filter(open >1) %>%
+  dplyr::filter(open >1) %>%
   mutate(Date =  lubridate::date(time),
          Return = case_when(
            row_number() == 1 ~ log(close) - log(open),
@@ -85,7 +85,7 @@ btcRV <- btcCandles %>%
          AnnualizedRV = sqrt(AnnualizedVariance),
          TotalVolume = sum(volume),
          candles = n()) %>%
-  filter(candles > 250)
+  dplyr::filter(candles > 250)
 
 ```
 
@@ -151,7 +151,7 @@ ggplot(data = btcRV_open) +
 btcRV_open <- btcRV_open %>% mutate(dLogRV = log(RV) - log(lag(RV)))
 btcRV_open$dLogRV[1] = 0
 acf(btcRV_open$dLogRV)
-#write_csv(btcRV_open, "btcOpenCandles.csv")
+write_csv(btcRV_open, "btcOpenCandles.csv")
 ```
 
 
