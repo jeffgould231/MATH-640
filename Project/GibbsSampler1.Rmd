@@ -1,0 +1,374 @@
+---
+title: "Gibbs Sampler Pt.1"
+author: "Jeff Gould"
+date: "5/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F)
+library(tidyverse)
+
+```
+
+
+First we build a Gibbs-MH Sampler on the Heston Model, using non-informative/flat priors for each parameter:
+
+We are able to get a closed form solution for $\xi^2$, but need to use an MH step for $\omega$ and $\theta$
+
+Log-likelihood functions for $\omega$ and $\theta$ are the same:
+
+$$
+\log L = - \frac{1}{2\xi^2}  \sum \frac{(V_t - \theta(\omega - V_t))^2}{V_t}
+$$
+
+Since Heston defines $omega$ as the long-run mean of the variance, we sample $\omega$ from a normal distribution centered at $\bar{\omega}$. As $\theta$ is a rate parameter bounded between $(0,1)$, we sample $\theta$ from a $beta$ distribution, with parameters tuned to get a desired acceptance rate and accuracy
+
+```{r }
+
+btc_candles <- read_csv("btcOpenCandles.csv") %>%
+  mutate(dVt = lead(AnnualizedRV) - AnnualizedRV) #%>%
+  # mutate(logAnnualRV = log(AnnualizedRV),
+  #        dYt = lead(logAnnualRV) - logAnnualRV)
+
+train <- btc_candles %>%
+  filter(time < as.Date("2019-07-01"))
+
+test <- btc_candles %>%
+  filter(time >= as.Date("2019-07-01"))
+
+Vt <- train$AnnualizedRV
+dVt <- train$dVt
+
+logL_omega <- function(Omega, Theta, Xi, .dVt = dVt, .Vt = Vt){
+  -1 / (2 * Xi^2) * sum(((.dVt - Theta * (Omega - .Vt))^2) / .Vt)
+}
+logL_theta <- function(Theta, Omega, Xi,  .dVt = dVt, .Vt = Vt){
+  -1 / (2 * Xi^2) * sum(((.dVt - Theta * (Omega - .Vt))^2) / .Vt)
+}
+
+burnIn <- 5000
+thin <- 10
+keep <- 1000
+B <- burnIn + keep * thin
+
+omega <- vector("numeric", B)
+xi <- vector("numeric", B)
+theta <- vector("numeric", B)
+
+omega[1] = mean(Vt)
+xi[1] = sd(Vt)^2
+theta[1] = 0.25
+
+n <- length(Vt)
+
+omega_accept <- 0
+theta_accept <- 0
+set.seed(111)
+for (b in 2:B) {
+
+  phi_alpha <- n/2
+  phi_beta <- sum((dVt - theta[b-1]*(omega[b-1] - Vt))^2 / (2*Vt))
+
+  phi <- MCMCpack::rinvgamma(1, phi_alpha, phi_beta)
+  xi[b] = sqrt(phi)
+  
+  U <- runif(1)
+  ## MH for omega
+  omega_star <- rnorm(1, mean = mean(Vt), sd = 0.5*sd(Vt))
+  
+  r <- exp(logL_omega(omega_star, theta[b-1], xi[b-1]) - logL_omega(omega[b-1], theta[b-1], xi[b-1]))
+  if(U < min(r,1)){
+    omega[b] = omega_star
+    if(b > burnIn){
+      omega_accept <- omega_accept + 1
+    }
+  }else{
+    omega[b] = omega[b-1]
+  }
+  ## MH for theta
+  theta_alpha = 4
+  theta_beta = 16
+  theta_star <- rbeta(1, theta_alpha, theta_beta)
+  
+  r <- exp(logL_theta(theta_star, omega[b-1], xi[b-1]) - logL_theta(theta[b-1], omega[b-1], xi[b-1])) *
+    (dbeta(theta[b-1], theta_alpha, theta_beta) / dbeta(theta_star, theta_alpha, theta_beta))
+  if(U < min(r,1)){
+    theta[b] = theta_star
+    if(b > burnIn){
+      theta_accept <- theta_accept + 1
+    }
+  }else{
+    theta[b] = theta[b-1]
+  }
+  
+}
+
+```
+
+
+Check output diagnostics:
+
+
+```{r }
+
+theta_accept / B
+omega_accept / B
+
+mean(omega[-c(1:burnIn)])
+mean(Vt)
+
+mean(theta[-c(1:burnIn)])
+mean(xi[-c(1:burnIn)])
+sd(Vt)
+
+acf(theta[-c(1:(B/2))])
+acf(xi[-c(1:(B/2))])
+acf(omega[-c(1:(B/2))])
+
+keepIdx <- seq(burnIn+1, B, by = thin)
+ThetaKeep <- theta[keepIdx]
+OmegaKeep <- omega[keepIdx]
+XiKeep <- xi[keepIdx]
+
+plot(density(ThetaKeep))
+hist(ThetaKeep)
+mean(OmegaKeep)
+median(OmegaKeep)
+
+```
+
+Now do a check to see how well the estimated parameters and underlying model capture the actual change in variance:
+
+```{r }
+
+HestonModel <- function(dBt, theta, omega, Vt, xi){
+  return(
+    theta * (Vt - omega) + xi * sqrt(Vt) * dBt
+  )
+ }
+# ItoHestonModel <- function(dBt, theta, omega, Vt, xi){
+#   return(
+#    (theta * (omega - Vt) - xi^2)/Vt + xi / sqrt(Vt) * dBt
+#   )
+# }
+
+simDVT <- function(Vt_i, theta, omega, xi, date, dBt = NULL, sims = 1000){
+  if(is.null(dBt)) dBt <- rnorm(sims)
+  
+  dYt <- t(sapply(dBt, HestonModel, Vt_i, theta, omega, xi)) %>% as.data.frame() 
+  dYt$Date = date
+  return(dYt)
+  
+}
+
+
+ParamsDf <- data.frame(theta = mean(ThetaKeep),
+                       omega = mean(OmegaKeep),
+                       xi = mean(XiKeep)) %>%
+  expand_grid(test%>% select(time, AnnualizedRV)) %>%
+  rename(date = time,
+         Vt_i = AnnualizedRV)
+
+testSim <- pmap_dfr(ParamsDf, simDVT)
+
+checkResults <- testSim %>%
+  pivot_longer(cols = V1:V1000, values_to = "simDVt") %>%
+  select(-name) %>%
+  left_join(test %>% select(Date = time, dVt, AnnualizedRV)) 
+
+checkResults %>%
+  group_by(Date) %>%
+  mutate(upper = quantile(simDVt, 0.95),
+         lower = quantile(simDVt, 0.05),
+         pointEst = median(simDVt)) %>%
+  filter(lubridate::day(Date) %in% c(1,11,21)) %>%
+  select(-simDVt) %>%
+  distinct() %>%
+  # ggplot(aes(x = AnnualizedRV)) +
+  # geom_point(aes(y = pointEst), col = "red") +
+  #geom_point(aes(y = dVt), col = "blue")
+  ggplot(aes(x = Date)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  geom_point(aes(y = dVt), col = "red")  +
+  geom_point(aes(y = pointEst), col = "blue") +
+  theme_bw()
+
+```
+
+
+
+
+
+#### Ignore this
+
+Do the same thing as above, except instead of using raw $V_t$, we take $\log(10*V_t)$ as our volatility parameter. The $\log$ transformation is because volatility follows a log-normal distribution, and the scaling of 10 is to prevent non-negative values so we can keep our Gibb-Sampling step with $\xi$. We will use $dY_t$ to denote the transformed variance
+
+
+```{r eval = F, echo = F}
+
+btc_candles <- read_csv("btcOpenCandles.csv") %>%
+  mutate(logAnnualRV = log(10*AnnualizedRV),
+         dYt = lead(logAnnualRV) - logAnnualRV)
+
+train <- btc_candles %>%
+  filter(time < as.Date("2019-07-01")) 
+
+test <- btc_candles %>%
+  filter(time >= as.Date("2019-07-01"))
+
+Yt <- train$logAnnualRV
+dYt <- train$dYt
+
+
+logL_omega <- function(Omega, Theta, Xi, .dYt = dYt, .Vt = Yt){
+  -1 / (2 * Xi^2) * sum(.Vt * (.dYt - (Theta * (Omega - .Vt) - Xi^2)/.Vt)^2)
+}
+
+logL_theta <- function(Theta, Omega, Xi,  .dYt = dYt, .Vt = Yt){
+  -1 / (2 * Xi^2) * sum(.Vt * (.dYt - (Theta * (Omega - .Vt) - Xi^2)/.Vt)^2)
+}
+
+# logL_Xi <- function(Xi, Omega, Theta, .dVt = dYt, .Vt = Vt){
+#   n <- length(.dVt)
+#   (-n/2 * log(Xi^2)) + (-(1/Xi^2) * sum((dVt - Theta * (Omega - Vt))^2 / (2 * Vt)))
+# }
+
+burnIn <- 10000
+thin <- 10
+keep <- 1000
+B <- burnIn + keep * thin
+
+omega <- vector("numeric", B)
+xi <- vector("numeric", B)
+theta <- vector("numeric", B)
+
+omega[1] = mean(train$AnnualizedRV)
+xi[1] = sd(Yt)^2
+theta[1] = 0.25
+
+n <- length(Yt)
+
+
+
+omega_accept <- 0
+theta_accept <- 0
+set.seed(111)
+for (b in 2:B) {
+  
+  phi_alpha <- n/2
+  phi_beta <- sum((dYt - theta[b-1]*(omega[b-1] - Yt))^2 / (2*Yt))
+   
+  phi <- MCMCpack::rinvgamma(1, phi_alpha, phi_beta)
+  xi[b] = sqrt(phi)
+  
+  U <- runif(1)
+  ## MH for omega
+  omega_star <- rnorm(1, mean = mean(train$AnnualizedRV), sd = 1.1*sd(Yt))
+  
+  r <- exp(logL_omega(omega_star, theta[b-1], xi[b-1]) - logL_omega(omega[b-1], theta[b-1], xi[b-1]))
+  if(U < min(r,1)){
+    omega[b] = omega_star
+    if(b > burnIn){
+      omega_accept <- omega_accept + 1
+    }
+  }else{
+    omega[b] = omega[b-1]
+  }
+  ## MH for theta
+  theta_alpha = 4.5
+  theta_beta = 9
+  theta_star <- rbeta(1, theta_alpha, theta_beta)
+  
+  r <- exp(logL_theta(theta_star, omega[b-1], xi[b-1]) - logL_theta(theta[b-1], omega[b-1], xi[b-1])) *
+    (dbeta(theta[b-1],theta_alpha,theta_beta) / dbeta(theta_star, theta_alpha, theta_beta))
+  if(U < min(r,1)){
+    theta[b] = theta_star
+    if(b > burnIn){
+      theta_accept <- theta_accept + 1
+    }
+  }else{
+    theta[b] = theta[b-1]
+  }
+  
+}
+theta_accept / B
+omega_accept / B
+
+mean(omega[-c(1:burnIn)])
+mean(train$AnnualizedRV)
+
+mean(theta[-c(1:burnIn)])
+mean(xi[-c(1:burnIn)])
+sd(Yt)
+
+acf(theta[-c(1:(B/2))])
+acf(xi[-c(1:(B/2))])
+acf(omega[-c(1:(B/2))])
+
+keepIdx <- seq(burnIn+1, B, by = thin)
+ThetaKeep <- theta[keepIdx]
+OmegaKeep <- omega[keepIdx]
+XiKeep <- xi[keepIdx]
+
+plot(density(ThetaKeep))
+hist(ThetaKeep)
+mean(OmegaKeep)
+median(OmegaKeep)
+
+HestonModel <- function(dBt, theta, omega, Yt, xi){
+  return(
+    theta * (Yt - omega) + xi * sqrt(Yt) * dBt
+  )
+}
+
+simDYT <- function(Yt_i, theta, omega, xi, date, dBt = NULL, sims = 1000){
+  if(is.null(dBt)) dBt <- rnorm(sims)
+  
+  dYt <- t(sapply(dBt, HestonModel, Yt_i, theta, omega, xi)) %>% as.data.frame() 
+  dYt$Date = date
+  return(dYt)
+  
+}
+
+
+ParamsDf <- data.frame(theta = mean(ThetaKeep),
+                       omega = mean(OmegaKeep),
+                       xi = mean(XiKeep)) %>%
+  expand_grid(test%>% select(time, logAnnualRV)) %>%
+  rename(date = time,
+         Yt_i = logAnnualRV)
+
+testSim <- pmap_dfr(ParamsDf, simDYT)
+
+checkResults <- testSim %>%
+  pivot_longer(cols = V1:V10, values_to = "simDVt") %>%
+  select(-name) %>%
+  left_join(test %>% select(Date = time, dYt, logAnnualRV))
+
+checkResults %>%
+  group_by(Date) %>%
+  mutate(upper = quantile(simDVt, 0.95),
+         lower = quantile(simDVt, 0.05),
+         pointEst = median(simDVt)) %>%
+  filter(lubridate::day(Date) %in% c(1,11,21)) %>%
+  select(-simDVt) %>%
+  distinct() %>%
+  # ggplot(aes(x = AnnualizedRV)) +
+  # geom_point(aes(y = pointEst), col = "red") +
+  #geom_point(aes(y = dVt), col = "blue")
+  ggplot(aes(x = Date)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  geom_point(aes(y = dYt), col = "red")  +
+  geom_point(aes(y = pointEst), col = "blue")
+
+
+
+
+
+```
+
+
+
+
+

@@ -1,0 +1,203 @@
+---
+title: "Gibbs Sampler log"
+author: "Jeff Gould"
+date: "5/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+library(tidyverse)
+```
+
+Since volatility follows a log-normal distribution, we may find better accuracy building a model on $\log(Vol)$ instead of the level version
+
+So we set $V_t = \exp(X_t)$, with $X$ as a mean-reverting Gaussian process (also referred to as an Ornstein-Uhlenbeck and Vasicek process), then we get:
+
+$$
+d X_t = \kappa(\theta - X_t)dt + \epsilon dW_t
+$$
+
+where $\kappa$ is the mean-reversion parameter, $\theta \approx$ the long-run mean, $\epsilon$ is a diffusion parameter, and $dW_t$ is standard Brownian Motion
+
+$X$ is a Gaussian process, and by extension $V$ is log-normal, and this gives the followign conditional distribution:
+
+$$
+X_{t+1} | X_t \sim \mathcal{N} \left(X_t e^{-\kappa} + \theta(1 - e^{-\kappa}), \frac{\epsilon^2 (1  - e^{-2 \kappa})}{2 \kappa} \right)
+$$
+
+This gives $P(X_{t+1} | X_t) = \frac{1}{\sqrt{2 \pi \frac{\epsilon^2 (1  - e^{-2 \kappa})}{2 \kappa}}} \exp \left[-\frac{1}{2\frac{\epsilon^2 (1  - e^{-2 \kappa})}{2 \kappa}} (X_{t+1} - (X_t e^{-\kappa} + \theta(1 - e^{-\kappa})))^2 \right]$
+
+Likelihood function:
+
+$$
+P(\epsilon^2, \kappa, \theta | X) \propto (\epsilon^2)^{-1} \prod_{t=1}^{n-1} \frac{1}{\sqrt{2 \pi \frac{\epsilon^2 (1  - e^{-2 \kappa})}{2 \kappa}}} \exp \left[-\frac{1}{2\frac{\epsilon^2 (1  - e^{-2 \kappa})}{2 \kappa}} (X_{t+1} - (X_t e^{-\kappa} + \theta(1 - e^{-\kappa})))^2 \right] \\
+\propto (\epsilon^2)^{-1} \left[\frac{\epsilon^2 (1  - e^{-2 \kappa})}{2 \kappa} \right]^{-n/2} \exp \left[-\frac{1}{2\frac{\epsilon^2 (1  - e^{-2 \kappa})}{2 \kappa}} \sum \left\{X_{t+1} - (X_t e^{-\kappa} + \theta(1 - e^{-\kappa}))\right\}^2 \right] \\
+\propto (\epsilon^2)^{-1} \left[\frac{\kappa^{n/2}}{(\epsilon^2 (1  - e^{-2 \kappa}))^{n/2}} \right]^{-n/2} \exp \left[-\frac{\kappa}{\epsilon^2 (1  - e^{-2 \kappa})} \sum \left\{X_{t+1} - (X_t e^{-\kappa} + \theta(1 - e^{-\kappa}))\right\}^2 \right] 
+$$
+
+
+So we get $\epsilon^2$ is an Inverse-Gamma r.v, and no closed form solutions for $\kappa$ and $\theta$
+
+
+Since $\kappa$ is a rate parameter, it is bounded between $[0,1]$. We first start tuning the Sampler by using a Uniform distribution for the MH step, then switch to a $Beta$ distribution when we have a better idea of the center. Since $\theta$ is the long-run mean of $X$, we sample $\theta^*$ from a normal distribution centered at $\bar{X}$, with $\sigma$ tuned to get an ideal acceptance rate.
+
+```{r}
+btc_candles <- read_csv("btcOpenCandles.csv") %>%
+  mutate(dVt = lead(AnnualizedRV) - AnnualizedRV) %>%
+  mutate(logAnnualRV = log(AnnualizedRV),
+        dYt = lead(logAnnualRV) - logAnnualRV) %>%
+  select(Date,time,  AnnualizedRV, dVt, logAnnualRV, dYt)
+
+train <- btc_candles %>%
+  filter(time < as.Date("2019-07-01"))
+
+test <- btc_candles %>%
+  filter(time >= as.Date("2019-07-01"))
+
+
+Xt <- train$logAnnualRV
+#dYt <- train$dYt
+
+## Make a function for the kernel in the exponent for easier use later
+expKernel <- function(k, eps, theta, X = Xt){
+  - k / (eps * ( 1 - exp(-2 * k))) * sum(
+    (lead(X) - (X * exp(-k) + theta * (1 - exp(-k))))^2
+  , na.rm = T)
+}
+
+logLKappa <- function(k, eps, theta, X = Xt){
+  n/2  * log(k) - n/2 * log(1 - exp(-2*k)) + expKernel(k, eps, theta, X)
+}
+
+
+burnIn <- 10000
+thin <- 10
+keep <- 1000
+B <- burnIn + keep * thin
+
+theta <- vector("numeric", B)
+eta2 <- vector("numeric", B)
+kappa <- vector("numeric", B)
+
+theta[1] = mean(Xt)
+eta2[1] = sd(Xt)^2
+kappa[1] = 0.25
+
+n <- length(Xt)
+
+theta_accept <- 0
+kappa_accept <- 0
+
+set.seed(111)
+for (b in 2:B) {
+
+  U <- runif(1)
+  
+  ## Gibbs Sample eta2
+  eta2[b] <- MCMCpack::rinvgamma(1, n/2, -expKernel(kappa[b-1], 1, theta[b-1]))
+  
+  
+  ## MH for theta
+  theta_star <- rnorm(1, mean(Xt), sd(Xt)/2)
+  
+  r <- exp(expKernel(kappa[b-1], eta2[b-1], theta_star) - expKernel(kappa[b-1], eta2[b-1], theta[b-1]))
+  
+  if(U < min(r,1)){
+    theta[b] = theta_star
+    if(b > burnIn){
+      theta_accept <- theta_accept + 1
+    }
+  }else{
+    theta[b] = theta[b-1]
+  }
+  
+  ## MH for eta
+  kappa_alpha = 3
+  kappa_beta = 9
+  kappa_star <- rbeta(1, kappa_alpha, kappa_beta)
+  #kappa_star <- runif(1)
+  
+  r <- exp(logLKappa(kappa_star, eta2[b-1], theta[b-1]) - logLKappa(kappa[b-1], eta2[b-1], theta[b-1])) *
+    (dbeta(kappa[b-1], kappa_alpha, kappa_beta) / dbeta(kappa_star, kappa_alpha, kappa_beta))
+  if(U < min(r,1)){
+    kappa[b] = kappa_star
+    if(b > burnIn){
+      kappa_accept <- kappa_accept + 1
+    }
+  }else{
+    kappa[b] = kappa[b-1]
+  }
+  
+}
+
+
+kappa_accept / B
+theta_accept / B
+
+mean(theta[-c(1:burnIn)])
+mean(Xt)
+
+mean(kappa[-c(1:burnIn)])
+mean(eta2[-c(1:burnIn)]) %>% sqrt()
+sd(Xt)
+
+acf(theta[-c(1:(B/2))])
+acf(kappa[-c(1:(B/2))])
+acf(eta2[-c(1:(B/2))])
+
+keepIdx <- seq(burnIn+1, B, by = thin)
+ThetaKeep <- theta[keepIdx]
+KappaKeep <- kappa[keepIdx]
+eta2Keep <- eta2[keepIdx]
+
+plot(density(ThetaKeep))
+hist(KappaKeep)
+hist(eta2Keep)
+
+
+calcXt1 <- function(Xt, k, eps2, theta, Date, n = 1000){
+  mu <- Xt * exp(-k) + theta * (1 - exp(-k))
+  var <- (eps2 * ( 1 - exp(-2*k))) / (2*k)
+  Xt1 <- rnorm(n, mu, sqrt(var))
+  simXt1 <- expand_grid(Date, Xt1) %>%
+    mutate(Vt1 = exp(Xt1))
+  return(simXt1)
+}
+
+K <- mean(KappaKeep)
+Eps2  <- mean(eta2Keep)
+Theta <- mean(ThetaKeep)
+
+ParamsDf <- data.frame(k = K,
+                       eps2 = Eps2,
+                       theta = Theta) %>%
+  expand_grid(test%>% select(Date, logAnnualRV)) %>%
+  rename(Xt = logAnnualRV)
+
+testSim <- pmap_dfr(ParamsDf, calcXt1)
+
+testSim %>%
+  rename(Xt1_pred = Xt1,
+         Vt1_pred = Vt1) %>%
+  group_by(Date) %>%
+  mutate(upper = quantile(Vt1_pred, 0.95),
+         lower = quantile(Vt1_pred, 0.05),
+         pointEst = median(Vt1_pred)) %>%
+  select(Date, upper, lower, pointEst) %>%
+  distinct() %>%
+  left_join(test %>% select(Date, AnnualizedRV, logAnnualRV)) %>%
+  ungroup() %>%
+  mutate(Xt1 = lead(logAnnualRV),
+         Vt1 = lead(AnnualizedRV)) %>%
+  filter(lubridate::day(Date) %in% c(1,6,11,16,21,26)) %>%
+  # ggplot(aes(x = AnnualizedRV)) +
+  # geom_point(aes(y = pointEst), col = "red") +
+  #geom_point(aes(y = dVt), col = "blue")
+  ggplot(aes(x = Date)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  geom_point(aes(y = Vt1), col = "red")  +
+  geom_point(aes(y = pointEst), col = "blue") +
+  theme_bw() 
+
+```
