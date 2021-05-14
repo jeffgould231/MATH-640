@@ -181,9 +181,12 @@ testSim %>%
   rename(Xt1_pred = Xt1,
          Vt1_pred = Vt1) %>%
   group_by(Date) %>%
-  mutate(upper = quantile(Vt1_pred, 0.95),
-         lower = quantile(Vt1_pred, 0.05),
-         pointEst = median(Vt1_pred)) %>%
+  # mutate(upper = quantile(Vt1_pred, 0.95),
+  #        lower = quantile(Vt1_pred, 0.05),
+  #        pointEst = median(Vt1_pred)) %>%
+  mutate(upper = max(Vt1_pred),
+         lower = min(Vt1_pred),
+         pointEst = mean(Vt1_pred)) %>%
   select(Date, upper, lower, pointEst) %>%
   distinct() %>%
   left_join(test %>% select(Date, AnnualizedRV, logAnnualRV)) %>%
@@ -201,3 +204,20 @@ testSim %>%
   theme_bw() 
 
 ```
+
+
+
+$$
+\left[\Delta_t (\mu - q) S_t - V_t - (\mu - q)S_t - \frac{1}{2}\sigma^2 S_t^2 V_{ss} + \Delta_t q S_t \right] dt + \left[\Delta_t \sigma S_t - \sigma S_t V_s \right]dW_t
+$$
+
+
+
+
+
+
+
+
+
+
+
