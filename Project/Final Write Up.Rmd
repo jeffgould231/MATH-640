@@ -1,0 +1,31 @@
+---
+title: "Forecasting Realized Volatility on Intraday Bitcoin Returns with a Bayesain Approach"
+author: "Jeff Gould, Sergio Leon"
+output:
+  html_document:
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+Bitcoin has become one of the most talked about and controversial assets over the last severl years. As of time of print, it trades at around \$50,000 per coin, and has a total market value in excess of \$1 trillion. One of the criticisms of bitcoin is that it can be an extremely volatile asset, sometimes dropping as much as 10% in a matter of hours. As bitcoin becomes more widely traded and makes up more of people's and institution's investment portfolios, being able to model and forecast that volatility is an important part of managing the risk in one's portfolio. Volatility has been studied extensively in equities markets, and is even tradable in the form of the CBOE's VIX. While volatility derivatives on bitcoin do not yet exist, the number of financial derivatives on cryptocurrencies is increasing, and it is not unreasonable to think it might be tradable in the near future. But in the interim, being able to forecast volatility is still an important part of portfolio management.
+
+Our dataset comes from the Coinbase Pro API, in the form of 5-minute Open-High-Low-Close-Volume (OHLCV) Candles, with date ranging from January 1, 2016 to April 16, 2021 (code to pull data available in [appendix](Appendix)). One difficulty of bitcoin as supposed to traditional equiutes markets is that there is no central exchange. There are multiple places to trade bitcoin, both in the US and across the world. However, Coinbase is the largest exchange for bitcoin transactions, so it is still a sufficient source. We do need to make the assumption that the prices quoted on Coinbase are consistent with other exchanges, ie no arbitrage opportunities. There is also the issue of occasional server outages on Coinbase, causing "flash crashes" on bitcoin, while prices hold steady on other platforms. We somewhat deal with this issue by excluding trading days missing more than 40 minutes of trade data.
+
+We calculate intraday variance as $\sum_{t=1}^n r_t^2$, where $r_t= \log(P_t) - \log(P_{t-1})$. Then Realized Volatility ($RV$) is simply the squareroot of the realized variance: $RV = \sqrt{\sum_{t=1}^n r_t^2}$. There are mutliple Volatility models that exist from reaserch in equities markets. Our goal is to explore a couple of these with both informative and non-informative priors, derive the parameters for the models, using data from January 2016 - June 30 2019, and then test the derived models and parameters on the data from July 1, 2019 - April 2021.
+
+# Methods
+
+We explore three approaches to modeling the $RV$ for bitcoin. First we took two approaches modeling the Heston Model. The Heston Model is one of the most recognized models for volatility in equities. The Heston Model is a mean-reverting stochastic process with the form of $dV_t = \theta(V_t - \omega)dt + \xi \sqrt{V_t}dB_t$, where $\omega$ is the long-run average volatility, $xi$ is the variance, or "vol of vol", $\theta$ is the rate at which volatility reverts to the mean, and $dB_t$ is standard Brownian Motion. In the general model, $dB_t$ is correlated with the $dW_t$ Brownian Motion for the change in price of the underlying asset (which is in the form of Geometric Brownian Motion), but since we aren't forecasting changes in price that is not necessary for our study. We tune the parameters to this model with two approaches, the first is to use flat/non-informative priors on the three parameters, and the other is using priors for $\omega$ centered at the mean and a prior for $\xi$ centered at the variance. Our other approach is to tune parameters on $\log RV$, following an Ornstein-Uhlenbeck and Vasicek process (Gaussian Process): Define $V_t = \exp X_t$. Then $d X_t = \theta(\omega - X_t)dt + \xi dW_t$, and $V_t$ follows a log-normal distribution. We hypothesize this transformation to be useful as volatility is a fat-tailed distribution, and the log-normal distribution typically approximates the underlying well
+
+In the Heston Model, since $dB_t$ is a standard Normal Random Variable, then $dV_t \sim \mathcal{N} (\theta(V_t - \omega), \xi^2 V_t)$. For the log-normal transformation, we follow the derivation from Tegner and Poulsen (2018): $X_{t+1} | X_t \sim \mathcal{N}\left(X_t e^{-\theta} + \omega(1 - e^{-\theta}), \frac{\xi^2(1 - e^{-2\theta})}{2\theta} \right)$
+
+
+
+
+# Appendix
+
