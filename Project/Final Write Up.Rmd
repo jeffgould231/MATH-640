@@ -2,19 +2,20 @@
 title: "Forecasting Realized Volatility on Intraday Bitcoin Returns with a Bayesain Approach"
 author: "Jeff Gould, Sergio Leon"
 output:
-  html_document:
+  pdf_document:
     number_sections: true
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = F, message = FALSE)
+library(tidyverse)
 ```
 
 # Introduction
 
 Bitcoin has become one of the most talked about and controversial assets over the last severl years. As of time of print, it trades at around \$50,000 per coin, and has a total market value in excess of \$1 trillion. One of the criticisms of bitcoin is that it can be an extremely volatile asset, sometimes dropping as much as 10% in a matter of hours. As bitcoin becomes more widely traded and makes up more of people's and institution's investment portfolios, being able to model and forecast that volatility is an important part of managing the risk in one's portfolio. Volatility has been studied extensively in equities markets, and is even tradable in the form of the CBOE's VIX. While volatility derivatives on bitcoin do not yet exist, the number of financial derivatives on cryptocurrencies is increasing, and it is not unreasonable to think it might be tradable in the near future. But in the interim, being able to forecast volatility is still an important part of portfolio management.
 
-Our dataset comes from the Coinbase Pro API, in the form of 5-minute Open-High-Low-Close-Volume (OHLCV) Candles, with date ranging from January 1, 2016 to April 16, 2021 (code to pull data available in [appendix](Appendix)). One difficulty of bitcoin as supposed to traditional equiutes markets is that there is no central exchange. There are multiple places to trade bitcoin, both in the US and across the world. However, Coinbase is the largest exchange for bitcoin transactions, so it is still a sufficient source. We do need to make the assumption that the prices quoted on Coinbase are consistent with other exchanges, ie no arbitrage opportunities. There is also the issue of occasional server outages on Coinbase, causing "flash crashes" on bitcoin, while prices hold steady on other platforms. We somewhat deal with this issue by excluding trading days missing more than 40 minutes of trade data.
+Our dataset comes from the Coinbase Pro API, in the form of 5-minute Open-High-Low-Close-Volume (OHLCV) Candles, with date ranging from January 1, 2016 to April 16, 2021 (code to pull data available in [Appendix B](B)). One difficulty of bitcoin as supposed to traditional equiutes markets is that there is no central exchange. There are multiple places to trade bitcoin, both in the US and across the world. However, Coinbase is the largest exchange for bitcoin transactions, so it is still a sufficient source. We do need to make the assumption that the prices quoted on Coinbase are consistent with other exchanges, ie no arbitrage opportunities. There is also the issue of occasional server outages on Coinbase, causing "flash crashes" on bitcoin, while prices hold steady on other platforms. We somewhat deal with this issue by excluding trading days missing more than 40 minutes of trade data.
 
 We calculate intraday variance as $\sum_{t=1}^n r_t^2$, where $r_t= \log(P_t) - \log(P_{t-1})$. Then Realized Volatility ($RV$) is simply the squareroot of the realized variance: $RV = \sqrt{\sum_{t=1}^n r_t^2}$. There are mutliple Volatility models that exist from reaserch in equities markets. Our goal is to explore a couple of these with both informative and non-informative priors, derive the parameters for the models, using data from January 2016 - June 30 2019, and then test the derived models and parameters on the data from July 1, 2019 - April 2021.
 
@@ -24,8 +25,57 @@ We explore three approaches to modeling the $RV$ for bitcoin. First we took two 
 
 In the Heston Model, since $dB_t$ is a standard Normal Random Variable, then $dV_t \sim \mathcal{N} (\theta(V_t - \omega), \xi^2 V_t)$. For the log-normal transformation, we follow the derivation from Tegner and Poulsen (2018): $X_{t+1} | X_t \sim \mathcal{N}\left(X_t e^{-\theta} + \omega(1 - e^{-\theta}), \frac{\xi^2(1 - e^{-2\theta})}{2\theta} \right)$
 
+```{r figs, fig.height=2.5,  fig.cap="We plot the level volatility and log-volatility side-by-side, demonstrating the skew in the underlying distribution, and why sampling on the log-Vol may produce better results than on the level version."}
+btc <- read_csv(file = "btcOpenCandles.csv")
+level_plot <- ggplot(btc, aes(x = time, y = AnnualizedRV)) +
+  geom_line() +
+  theme_bw() +
+  labs(y = "Volatility", x = "Date")
 
+log_plot <- ggplot(btc, aes(x = time, y = log(AnnualizedRV))) +
+  geom_line() +
+  theme_bw() +
+  labs(y = "log-Volatility", x = "Date")
 
+gridExtra::marrangeGrob(grobs = list(level_plot, log_plot), nrow = 1, ncol = 2, top = NULL)
+```
 
-# Appendix
+For the Heston Model, we have a likelihood function of 
+
+$$
+\mathcal{L}(dV_t | V_t, \theta, \omega, \xi) \propto
+(\xi^2)^{-n/2}\exp \left[-\frac{1}{2\xi^2 } \sum \frac{(dV_t - \theta(\omega -V_t))^2}{V_t} \right]
+$$
+
+For $\xi^2$, we easily see that we get the kernel for an Inverse-Gamma distribution. Using the non-informative prior $\pi(\xi^2) \propto (\xi^2)^{-1}$, we get a posterior distribution of
+
+$$
+P(\xi^2 | V_t, dV_t, \theta, \omega) \sim IG \left(n/2, \sum \frac{(dV_t - \theta(\omega - V_t))^2)}{2 V_t} \right)
+$$
+There is no closed solution for $\theta$ or $\omega$, so we use a MH step in our sampler. With a flat prior, these have the same posterior likelihood, the exponential term from our likelihood function:
+
+$$\exp \left[-\frac{1}{2\xi^2 } \sum \frac{(dV_t - \theta(\omega -V_t))^2}{V_t} \right]$$
+
+Since $\omega$ is by definition the long-run mean of the volatility, we sample $omega^*$ from a normal distribution centered at $\bar{\omega}$, with the standard deviation tuned to improve our acceptance rate. Since $\theta$ is a rate parameter, $\theta < 1$, so we sample from a beta distribution for $\theta$. Initially we start our run on the Uniform distribution to get an idea of where the true value is, and then we tune the shape and scale parameters to center around that point and improve our acceptance rate.
+
+For our log-model, we again use the non-informative prior on $\xi^2$, $\pi(\xi^2) \propto (\xi^2)^{-1}$, with flat priors on $\theta$ and $\omega$. This gives us the following likelihood function (See [Appendix B](B) for full derivation):
+
+$$
+P(\xi^2, \theta, \omega | X) \propto (\xi^2)^{-1} \left[\frac{\theta^{n/2}}{(\xi^2 (1  - e^{-2 \theta}))^{n/2}} \right]^{-n/2} \exp \left[-\frac{\theta}{\xi^2 (1  - e^{-2 \theta})} \sum \left\{X_{t+1} - (X_t e^{-\theta} + \omega(1 - e^{-\theta}))\right\}^2 \right] 
+$$
+
+Again, we have an Inverse Gamma posterior for $\xi^2$, with no closed form solutions for $\theta$ and $\omega$. Instead we again use an MH step for $\theta$ and $\omega$, using the same process as above
+
+# Results
+
+# Discussion
+
+# References
+
+# Appendix 
+
+## A
+
+## B
+
 
