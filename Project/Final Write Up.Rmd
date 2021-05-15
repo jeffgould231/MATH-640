@@ -68,6 +68,28 @@ Again, we have an Inverse Gamma posterior for $\xi^2$, with no closed form solut
 
 # Results
 
+```{r fig.height=3, fig.width=6, fig.cap = "We plot the upper and lower bounds of our simulations using the results of the logRV model (black) with the actual Realized Volatility (red), and our point estimate (blue). Only three times (0.46%) did the actual realized volatility fall outside of our draws for realized volatility.", warning = FALSE}
+
+logSimResults <- read_rds("logSimResults.rds")
+
+#mean(1-logSimResults$inCI)
+
+ggplot(logSimResults, aes(x = Date)) +
+  geom_line(aes(y = upper), color = "black") +
+  geom_line(aes(y = lower), color = "black") +
+  geom_line(aes(y = Vt1), color = "red") + 
+  geom_line(aes(y = pointEst), color = "blue", size = 0.05 ) +
+  scale_y_log10() +
+  theme_bw()  +
+    labs(y = "Realized Volatility (log-scale)")
+  #geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  # geom_point(aes(y = Vt1), col = "red")  +
+  # geom_point(aes(y = pointEst), col = "blue") +
+  # theme_bw()
+
+
+```
+
 # Discussion
 
 # References
