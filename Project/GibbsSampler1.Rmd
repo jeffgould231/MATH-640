@@ -131,6 +131,11 @@ ThetaKeep <- theta[keepIdx]
 OmegaKeep <- omega[keepIdx]
 XiKeep <- xi[keepIdx]
 
+GibbsSamplerResults1 <- data.frame(omega = OmegaKeep,
+                                   theta = ThetaKeep,
+                                   xi = XiKeep)
+saveRDS(GibbsSamplerResults1, "GibbsSamplerHeston1.rds")
+
 plot(density(ThetaKeep))
 hist(ThetaKeep)
 mean(OmegaKeep)
