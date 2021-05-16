@@ -180,24 +180,58 @@ testSim <- pmap_dfr(ParamsDf, simDVT)
 checkResults <- testSim %>%
   pivot_longer(cols = V1:V1000, values_to = "simDVt") %>%
   select(-name) %>%
-  left_join(test %>% select(Date = time, dVt, AnnualizedRV)) 
+  left_join(test %>% select(Date = time, dVt, AnnualizedRV) %>% mutate(Vt1 = lead(AnnualizedRV))) %>%
+  mutate(Vt1_pred = AnnualizedRV + simDVt)
 
 checkResults %>%
   group_by(Date) %>%
-  mutate(upper = quantile(simDVt, 0.95),
-         lower = quantile(simDVt, 0.05),
-         pointEst = median(simDVt)) %>%
-  filter(lubridate::day(Date) %in% c(1,11,21)) %>%
-  select(-simDVt) %>%
+  mutate(upper95 = quantile(Vt1_pred, 0.95),
+         lower95 = quantile(Vt1_pred, 0.05)) %>%
+  mutate(upper = max(Vt1_pred),
+         lower = min(Vt1_pred),
+         pointEst = mean(Vt1_pred)) %>%
+  select(Date, upper95, lower95, Vt1) %>%
   distinct() %>%
-  # ggplot(aes(x = AnnualizedRV)) +
-  # geom_point(aes(y = pointEst), col = "red") +
-  #geom_point(aes(y = dVt), col = "blue")
-  ggplot(aes(x = Date)) +
-  geom_errorbar(aes(ymin = lower, ymax = upper)) +
-  geom_point(aes(y = dVt), col = "red")  +
-  geom_point(aes(y = pointEst), col = "blue") +
-  theme_bw()
+  mutate(in95 = (Vt1 >=lower95 & Vt1 <= upper95)) %$% mean(in95, na.rm = T)
+
+checkResults %>%
+  select(Date, Vt1_pred, Vt1) %>%
+  ungroup() %>%
+  group_by(Date, Vt1) %>%
+  summarise(pointEst = mean(Vt1_pred)) %$% cor(Vt1, pointEst, use = "complete.obs")^2
+
+GibbsSamplerResultsHeston <- read_rds("GibbsSamplerHeston1.rds")
+
+WAIC <- test %>%
+  select(Date, dVt, AnnualizedRV) %>%
+  mutate(Vt_1 = dVt + AnnualizedRV,
+         i = row_number()) %>%
+  expand_grid(GibbsSamplerResultsHeston%>% mutate(b = 1:keep)) %>%
+  mutate(mu = AnnualizedRV + theta*(omega - AnnualizedRV),
+         sigma2 = xi*sqrt(AnnualizedRV)) %>%
+  mutate(Ly_i = dnorm(Vt_1, mu, sqrt(sigma2)))
+
+lppd <- WAIC %>% group_by(i) %>% summarise(BB = 1/n() * sum(Ly_i)) %$% sum(log(BB), na.rm = T)
+
+pWAIC <-  WAIC %>%
+  group_by(i) %>%
+  mutate(meanLogl = 1/keep * sum(log(Ly_i))) %>%
+  summarise(inside = sum((log(Ly_i) - meanLogl)^2)) %$% sum((1/(keep-1)) * inside, na.rm = T)
+
+WAIC_return <- -2 * lppd + 2 * pWAIC
+
+
+  # filter(lubridate::day(Date) %in% c(1,11,21)) %>%
+  # select(-simDVt) %>%
+  # distinct() %>%
+  # # ggplot(aes(x = AnnualizedRV)) +
+  # # geom_point(aes(y = pointEst), col = "red") +
+  # #geom_point(aes(y = dVt), col = "blue")
+  # ggplot(aes(x = Date)) +
+  # geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  # geom_point(aes(y = dVt), col = "red")  +
+  # geom_point(aes(y = pointEst), col = "blue") +
+  # theme_bw()
 
 ```
 

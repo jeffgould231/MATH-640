@@ -151,6 +151,32 @@ ThetaKeep <- theta[keepIdx]
 KappaKeep <- kappa[keepIdx]
 eta2Keep <- eta2[keepIdx]
 
+GibbsSamplerResultsLog <- data.frame(omega = ThetaKeep,
+                                   theta = KappaKeep,
+                                   xi = sqrt(eta2Keep))
+write_rds(GibbsSamplerResultsLog, "GibbsSamplerLog.rds")
+##calcWAIC
+WAIC <- test %>%
+  select(Date, logAnnualRV) %>%
+  mutate(Vt_1 = lead(logAnnualRV),
+         i = row_number()) %>%
+  expand_grid(GibbsSamplerResultsLog%>% mutate(b = 1:keep)) %>%
+  mutate(mu = logAnnualRV * exp(-theta) + omega * (1 - exp(-theta)),
+         sigma2 = (xi^2 * (1 - exp(-2*theta))) / (2*theta)) %>%
+  mutate(Ly_i = dnorm(Vt_1, mu, sqrt(sigma2)))
+
+lppd <- WAIC %>% group_by(i) %>% summarise(BB = 1/n() * sum(Ly_i)) %$% sum(log(BB), na.rm = T)
+
+pWAIC <-  WAIC %>%
+  group_by(i) %>%
+  mutate(meanLogl = 1/keep * sum(log(Ly_i))) %>%
+  summarise(inside = sum((log(Ly_i) - meanLogl)^2)) %$% sum((1/(keep-1)) * inside, na.rm = T)
+  
+WAIC_return <- -2 * lppd + 2 * pWAIC
+
+
+
+
 plot(density(ThetaKeep))
 hist(KappaKeep)
 hist(eta2Keep)
@@ -181,24 +207,30 @@ testSim %>%
   rename(Xt1_pred = Xt1,
          Vt1_pred = Vt1) %>%
   group_by(Date) %>%
-  # mutate(upper = quantile(Vt1_pred, 0.95),
-  #        lower = quantile(Vt1_pred, 0.05),
-  #        pointEst = median(Vt1_pred)) %>%
+  mutate(upper95 = quantile(Vt1_pred, 0.95),
+         lower95 = quantile(Vt1_pred, 0.05)) %>%
   mutate(upper = max(Vt1_pred),
          lower = min(Vt1_pred),
          pointEst = mean(Vt1_pred)) %>%
-  select(Date, upper, lower, pointEst) %>%
+  select(Date, upper, lower, pointEst, upper95, lower95) %>%
   distinct() %>%
   left_join(test %>% select(Date, AnnualizedRV, logAnnualRV)) %>%
   ungroup() %>%
   mutate(Xt1 = lead(logAnnualRV),
          Vt1 = lead(AnnualizedRV)) %>%
-  filter(lubridate::day(Date) %in% c(1,6,11,16,21,26)) %>%
+  mutate(inCI = case_when(Vt1 <= upper95 & Vt1 >= lower95 ~ 1,
+                          TRUE ~ 0)) %>% write_rds("logSimResults.rds")
+  #filter(lubridate::day(Date) %in% c(1,6,11,16,21,26)) %>%
   # ggplot(aes(x = AnnualizedRV)) +
   # geom_point(aes(y = pointEst), col = "red") +
   #geom_point(aes(y = dVt), col = "blue")
   ggplot(aes(x = Date)) +
-  geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  geom_line(aes(y = upper), color = "black") +
+  geom_line(aes(y = lower), color = "black") +
+  geom_line(aes(y = Vt1), color = "red") + 
+  #scale_y_log10() +
+  theme_bw()
+  #geom_errorbar(aes(ymin = lower, ymax = upper)) +
   geom_point(aes(y = Vt1), col = "red")  +
   geom_point(aes(y = pointEst), col = "blue") +
   theme_bw() 
