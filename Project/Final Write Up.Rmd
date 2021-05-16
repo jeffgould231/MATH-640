@@ -54,7 +54,7 @@ P(\xi^2 | V_t, dV_t, \theta, \omega) \sim IG \left(n/2, \sum \frac{(dV_t - \thet
 $$
 There is no closed solution for $\theta$ or $\omega$, so we use a MH step in our sampler. With a flat prior, these have the same posterior likelihood, the exponential term from our likelihood function:
 
-$$\exp \left[-\frac{1}{2\xi^2 } \sum \frac{(dV_t - \theta(\omega -V_t))^2}{V_t} \right]$$
+$$P(\theta, \omega | \xi^2, dV_t, V_t) \propto \exp \left[-\frac{1}{2\xi^2 } \sum \frac{(dV_t - \theta(\omega -V_t))^2}{V_t} \right]$$
 
 Since $\omega$ is by definition the long-run mean of the volatility, we sample $omega^*$ from a normal distribution centered at $\bar{\omega}$, with the standard deviation tuned to improve our acceptance rate. Since $\theta$ is a rate parameter, $\theta < 1$, so we sample from a beta distribution for $\theta$. Initially we start our run on the Uniform distribution to get an idea of where the true value is, and then we tune the shape and scale parameters to center around that point and improve our acceptance rate.
 
@@ -75,6 +75,7 @@ logSimResults <- read_rds("logSimResults.rds")
 #mean(1-logSimResults$inCI)
 
 ggplot(logSimResults, aes(x = Date)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.25) +
   geom_line(aes(y = upper), color = "black") +
   geom_line(aes(y = lower), color = "black") +
   geom_line(aes(y = Vt1), color = "red") + 
